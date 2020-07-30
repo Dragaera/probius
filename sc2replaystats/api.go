@@ -13,27 +13,29 @@ import (
 
 const baseURL string = "https://api.sc2replaystats.com"
 
-type API struct {
-	APIKey string
-	client *http.Client
-}
-
 type Replay struct {
-	ReplayURL     string    `json:"replay_url"`
-	ReplayId      int       `json:"replay_id"`
-	MapName       string    `json:"map_name"`
-	Format        string    `json:"format"`
-	GameType      string    `json:"game_type"`
-	WinningPlayer string    `json:"winning_player"`
-	Players       []Player  `json:"players"`
-	SeasonId      int       `json:"seasons_id"`
-	ReplayDate    time.Time `json:"replay_date"`
-	ReplayVersion string    `json:"replay_version"`
+	ReplayURL     string         `json:"replay_url"`
+	ReplayId      int            `json:"replay_id"`
+	MapName       string         `json:"map_name"`
+	Format        string         `json:"format"`
+	GameType      GameType       `json:"game_type"`
+	Players       []ReplayPlayer `json:"players"`
+	SeasonId      int            `json:"seasons_id"`
+	ReplayDate    time.Time      `json:"replay_date"`
+	ReplayVersion string         `json:"replay_version"`
 }
 
-type Player struct {
+func (replay *Replay) Winner() *ReplayPlayer {
+	if replay.Players[0].Winner {
+		return &(replay.Players[0])
+	} else {
+		return &(replay.Players[1])
+	}
+}
+
+type ReplayPlayer struct {
 	Id         int         `json:"players_id"`
-	Clan       string      `json:"clan"`
+	ClanTag    string      `json:"clan"`
 	Race       Race        `json:"race"`
 	Mmr        int         `json:"mmr"`
 	Division   string      `json:"division"`
@@ -43,6 +45,19 @@ type Player struct {
 	Team       int         `json:"team"`
 	Winner     SC2RBool    `json:"winner"`
 	Color      PlayerColor `json:"color"`
+}
+
+type Player struct {
+	Id           int    `json:"players_id"`
+	Name         string `json:"players_name"`
+	BattleNetURL string `json:"battle_net_url"`
+	Clan         Clan   `json:"clan"`
+}
+
+type Clan struct {
+	Id   int    `json:"clans_id"`
+	Name string `json:"clan_name"`
+	Tag  string `json:"clan_tag"`
 }
 
 type PlayerColor color.RGBA
@@ -74,14 +89,33 @@ func (playerColor *PlayerColor) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("Invalid color string (B): %v", colorString)
 	}
 
-	// Numbers are unit64, but guaranteed (third parameter of ParseUint) to
-	// fit in 8bit unit
+	// Numbers are uint64, but guaranteed (third parameter of ParseUint) to
+	// fit in 8bit uint
 	*playerColor = PlayerColor{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}
 
 	return nil
 }
 
-type Race string
+type Race int
+
+const (
+	Protoss Race = iota
+	Terran
+	Zerg
+)
+
+func (race Race) String() string {
+	switch race {
+	case Protoss:
+		return "Protoss"
+	case Terran:
+		return "Terran"
+	case Zerg:
+		return "Zerg"
+	default:
+		return "Unknown"
+	}
+}
 
 func (race *Race) UnmarshalJSON(b []byte) error {
 	var raceString string
@@ -98,18 +132,11 @@ func (race *Race) UnmarshalJSON(b []byte) error {
 	case "Z":
 		*race = Zerg
 	default:
-		*race = Unknown
+		return fmt.Errorf("Invalid race: %v", raceString)
 	}
 
 	return nil
 }
-
-const (
-	Protoss Race = "Protoss"
-	Terran  Race = "Terran"
-	Zerg    Race = "Zerg"
-	Unknown Race = "Unknown"
-)
 
 // SC2Replaystats uses `0` for false, `1` for true. Using a custom type allows
 // us to have a custom UnmarshalJSON method.
@@ -134,11 +161,62 @@ func (winner *SC2RBool) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (api *API) LastReplay() (Replay, error) {
-	replay := Replay{}
+type GameType int
 
-	// body, err := api.call("account/last-replay")
-	body, err := ioutil.ReadFile("/tmp/sc2r.json")
+const (
+	AutoMM GameType = iota
+	AutoMMAI
+	AutoMMArchon
+	Private
+)
+
+func (gameType GameType) String() string {
+	switch gameType {
+	case AutoMM:
+		return "AutoMM"
+	case AutoMMAI:
+		return "AutoMM AI"
+	case AutoMMArchon:
+		return "AutoMM Archon"
+	case Private:
+		return "Private"
+	default:
+		return "Unknown"
+	}
+}
+
+func (gameType *GameType) UnmarshalJSON(b []byte) error {
+	var gameTypeString string
+	err := json.Unmarshal(b, &gameTypeString)
+	if err != nil {
+		return err
+	}
+
+	switch gameTypeString {
+	case "AutoMM":
+		*gameType = AutoMM
+	case "AutoMM_AI":
+		*gameType = AutoMMAI
+	case "AutoMM_Archon":
+		*gameType = AutoMMArchon
+	case "Private":
+		*gameType = Private
+	default:
+		return fmt.Errorf("Invalid game type: %v", gameTypeString)
+	}
+
+	return nil
+}
+
+type API struct {
+	APIKey string
+	client *http.Client
+}
+
+func (api *API) LastReplay() (Replay, error) {
+	var replay Replay
+
+	body, err := api.call("account/last-replay")
 	if err != nil {
 		// No need to wrap, errors returned by call() should be plenty
 		// descriptive
@@ -151,6 +229,24 @@ func (api *API) LastReplay() (Replay, error) {
 	}
 
 	return replay, nil
+}
+
+func (api *API) Player(playerId int) (Player, error) {
+	var player Player
+
+	body, err := api.call(fmt.Sprintf("player/%v", playerId))
+	if err != nil {
+		// No need to wrap, errors returned by call() should be plenty
+		// descriptive
+		return player, err
+	}
+
+	err = json.Unmarshal(body, &player)
+	if err != nil {
+		return player, fmt.Errorf("Error while unmarshalling JSON: %v", err)
+	}
+
+	return player, nil
 }
 
 func (api *API) call(path string) ([]byte, error) {

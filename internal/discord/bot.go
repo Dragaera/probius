@@ -126,10 +126,11 @@ func (bot *Bot) InviteURL() string {
 	return fmt.Sprintf("https://discordapp.com/oauth2/authorize?client_id=%v&scope=bot", bot.ClientID)
 }
 
-func (bot *Bot) cmdHelp(sess *discordgo.Session, msg *discordgo.Message, args []string) bool {
+func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	out := strings.Builder{}
 
-	if len(args) == 0 {
+	switch len(ctxt.Args) {
+	case 0:
 		// Command list
 		out.WriteString("Available commands:\n")
 		for _, cmd := range bot.cmdRouter.commands {
@@ -141,18 +142,19 @@ func (bot *Bot) cmdHelp(sess *discordgo.Session, msg *discordgo.Message, args []
 				cmd.Description,
 			)
 		}
-	} else if len(args) == 1 {
+	case 1:
+		cmdIdentifier := ctxt.Args[0]
 		// Help about one command
-		if cmd, ok := bot.cmdRouter.commands[args[0]]; ok {
+		if cmd, ok := bot.cmdRouter.commands[cmdIdentifier]; ok {
 			fmt.Fprintf(&out, "%v: %v\n", cmd.Command, cmd.Description)
 			fmt.Fprintf(&out, "\tUsage: `%v%v`\n", commandPrefix, cmd.Usage)
 		} else {
-			fmt.Fprintf(&out, "Unknown command: `%v`\n", args[0])
+			fmt.Fprintf(&out, "Unknown command: `%v`\n", cmdIdentifier)
 		}
-	} else {
+	default:
 		return false
 	}
 
-	sess.ChannelMessageSend(msg.ChannelID, out.String())
+	ctxt.Sess.ChannelMessageSend(ctxt.Msg.ChannelID, out.String())
 	return true
 }

@@ -14,7 +14,7 @@ type Command struct {
 	Usage       string
 	MinArgs     int
 	MaxArgs     int
-	F           func(sess *discordgo.Session, msg *discordgo.Message, args []string) bool
+	F           func(ctxt CommandContext) bool
 }
 
 type CommandRouter struct {
@@ -51,26 +51,40 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 		return
 	}
 
+	ctxt := CommandContext{
+		Sess: sess,
+		Msg:  msg,
+		Args: args,
+	}
+
 	if cmd.MinArgs != -1 && len(args) < cmd.MinArgs {
-		respond(sess, msg.ChannelID, usage(&cmd))
+		ctxt.Respond(usage(&cmd))
 		return
 	}
 
 	if cmd.MaxArgs != -1 && len(args) > cmd.MaxArgs {
-		respond(sess, msg.ChannelID, usage(&cmd))
+		ctxt.Respond(usage(&cmd))
 		return
 	}
 
-	if ok := cmd.F(sess, msg, args); !ok {
-		respond(sess, msg.ChannelID, usage(&cmd))
+	if ok := cmd.F(ctxt); !ok {
+		ctxt.Respond(usage(&cmd))
 	}
 }
 
-func respond(sess *discordgo.Session, channelID string, msg string) {
-	sess.ChannelMessageSend(
-		channelID,
+type CommandContext struct {
+	Sess *discordgo.Session
+	Msg  *discordgo.Message
+	Args []string
+}
+
+func (ctxt *CommandContext) Respond(msg string) error {
+	_, err := ctxt.Sess.ChannelMessageSend(
+		ctxt.Msg.ChannelID,
 		msg,
 	)
+
+	return err
 }
 
 func usage(cmd *Command) string {

@@ -12,6 +12,8 @@ type Command struct {
 	Command     string
 	Description string
 	Usage       string
+	MinArgs     int
+	MaxArgs     int
 	F           func(sess *discordgo.Session, msg *discordgo.Message, args []string) bool
 }
 
@@ -49,11 +51,28 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 		return
 	}
 
-	if ok := cmd.F(sess, msg, args); !ok {
-		// Show usage on failure
-		sess.ChannelMessageSend(
-			msg.ChannelID,
-			fmt.Sprintf("Usage: %v%v\n", commandPrefix, cmd.Usage),
-		)
+	if cmd.MinArgs != -1 && len(args) < cmd.MinArgs {
+		respond(sess, msg.ChannelID, usage(&cmd))
+		return
 	}
+
+	if cmd.MaxArgs != -1 && len(args) > cmd.MaxArgs {
+		respond(sess, msg.ChannelID, usage(&cmd))
+		return
+	}
+
+	if ok := cmd.F(sess, msg, args); !ok {
+		respond(sess, msg.ChannelID, usage(&cmd))
+	}
+}
+
+func respond(sess *discordgo.Session, channelID string, msg string) {
+	sess.ChannelMessageSend(
+		channelID,
+		msg,
+	)
+}
+
+func usage(cmd *Command) string {
+	return fmt.Sprintf("Usage: %v%v\n", commandPrefix, cmd.Usage)
 }

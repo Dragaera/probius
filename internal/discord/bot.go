@@ -103,7 +103,9 @@ func (bot *Bot) registerCommands() {
 		Command{
 			Command:     "help",
 			Description: "Show help about commands",
-			Usage:       "help",
+			Usage:       "help [command]",
+			MinArgs:     0,
+			MaxArgs:     1,
 			F:           bot.cmdHelp,
 		},
 	)
@@ -113,6 +115,8 @@ func (bot *Bot) registerCommands() {
 			Command:     "auth",
 			Description: "Authorize the bot to access the SC2replaystats.com API on your behalf",
 			Usage:       "auth <api_key>",
+			MinArgs:     1,
+			MaxArgs:     1,
 			F:           bot.cmdAuth,
 		},
 	)

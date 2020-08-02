@@ -1,8 +1,10 @@
 package discord
 
 import (
+	"context"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,14 +14,21 @@ import (
 type Bot struct {
 	ClientID  string
 	Token     string
+	DBURL     string
 	Session   *discordgo.Session
 	cmdRouter *CommandRouter
+	db        *pgxpool.Pool
 }
 
 func (bot *Bot) Run() error {
 	if bot.Session == nil {
 		return fmt.Errorf("Bot not initiated, be sure to use discord.Create(...)")
 	}
+
+	if err := bot.initializePersistence(); err != nil {
+		return err
+	}
+	defer bot.db.Close()
 
 	err := bot.Session.Open()
 	if err != nil {
@@ -60,16 +69,33 @@ func Create(bot *Bot) (*Bot, error) {
 		discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages,
 	)
 
+	if err = bot.initializeCommands(); err != nil {
+		return nil, err
+	}
+
+	return bot, nil
+}
+
+func (bot *Bot) initializeCommands() error {
 	// Prepare command router
 	router := CommandRouter{}
 	router.commands = make(map[string]Command)
 	bot.cmdRouter = &router
-	dg.AddHandler(bot.cmdRouter.onMessageCreate)
+	bot.Session.AddHandler(bot.cmdRouter.onMessageCreate)
 
 	// And hook up commands
 	bot.registerCommands()
 
-	return bot, nil
+	return nil
+}
+
+func (bot *Bot) initializePersistence() error {
+	dbpool, err := pgxpool.Connect(context.Background(), bot.DBURL)
+	if err != nil {
+		return fmt.Errorf("Unable to connect to database:", err)
+	}
+	bot.db = dbpool
+	return nil
 }
 
 func (bot *Bot) registerCommands() {
@@ -124,9 +150,5 @@ func (bot *Bot) cmdHelp(sess *discordgo.Session, msg *discordgo.Message, args []
 	}
 
 	sess.ChannelMessageSend(msg.ChannelID, out.String())
-	return true
-}
-
-func (bot *Bot) cmdAuth(sess *discordgo.Session, msg *discordgo.Message, args []string) bool {
 	return true
 }

@@ -1,0 +1,19 @@
+version: '3'
+
+networks:
+  probius-dev:
+  gorge-test:
+
+volumes:
+  database-data:
+
+services:
+  database:
+    image: 'postgres:12'
+    env_file: .env.development
+    networks:
+      - probius-dev
+    ports:
+      - 15432:5432
+    volumes:
+      - database-data:/var/lib/postgresql/data

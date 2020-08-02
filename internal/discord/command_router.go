@@ -87,6 +87,27 @@ func (ctxt *CommandContext) Respond(msg string) error {
 	return err
 }
 
+func (ctxt *CommandContext) Channel() (*discordgo.Channel, error) {
+	return ctxt.Sess.Channel(ctxt.Msg.ChannelID)
+}
+
+func (ctxt *CommandContext) IsDM() (bool, error) {
+	channel, err := ctxt.Channel()
+	if err != nil {
+		return false, err
+	}
+
+	return channel.Type == discordgo.ChannelTypeDM, nil
+}
+
+func (ctxt *CommandContext) InternalError(err error) {
+	msg := fmt.Sprintf(
+		"An internal error has happened while performing this operation.\nPlease report the following to 'Morrolan#3163':\n`%v`",
+		err,
+	)
+	ctxt.Respond(msg)
+}
+
 func usage(cmd *Command) string {
 	return fmt.Sprintf("Usage: %v%v\n", commandPrefix, cmd.Usage)
 }

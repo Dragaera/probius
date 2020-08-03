@@ -33,8 +33,20 @@ func (replay *Replay) Winner() *ReplayPlayer {
 	}
 }
 
+func (replay *Replay) PlayersByTeam() map[int][]ReplayPlayer {
+	out := make(map[int][]ReplayPlayer)
+
+	for _, pl := range replay.Players {
+		fmt.Printf("Checking player: %+v\n", pl)
+		out[pl.Team] = append(out[pl.Team], pl)
+
+	}
+
+	return out
+}
+
 type ReplayPlayer struct {
-	Id         int         `json:"players_id"`
+	ID         int         `json:"players_id"`
 	ClanTag    string      `json:"clan"`
 	Race       Race        `json:"race"`
 	Mmr        int         `json:"mmr"`
@@ -115,6 +127,20 @@ func (race Race) String() string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (race Race) Shorthand() string {
+	switch race {
+	case Protoss:
+		return "P"
+	case Terran:
+		return "T"
+	case Zerg:
+		return "Z"
+	default:
+		return "Unkwown"
+	}
+
 }
 
 func (race *Race) UnmarshalJSON(b []byte) error {
@@ -213,10 +239,33 @@ type API struct {
 	client *http.Client
 }
 
+func (api *API) Verify() bool {
+	_, err := api.Player(1)
+	return err == nil
+}
+
 func (api *API) LastReplay() (Replay, error) {
 	var replay Replay
 
 	body, err := api.call("account/last-replay")
+	if err != nil {
+		// No need to wrap, errors returned by call() should be plenty
+		// descriptive
+		return replay, err
+	}
+
+	err = json.Unmarshal(body, &replay)
+	if err != nil {
+		return replay, fmt.Errorf("Error while unmarshalling JSON: %v", err)
+	}
+
+	return replay, nil
+}
+
+func (api *API) Replay(id int) (Replay, error) {
+	var replay Replay
+
+	body, err := api.call(fmt.Sprintf("replay/%v", id))
 	if err != nil {
 		// No need to wrap, errors returned by call() should be plenty
 		// descriptive

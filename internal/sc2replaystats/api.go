@@ -12,6 +12,7 @@ import (
 )
 
 const baseURL string = "https://api.sc2replaystats.com"
+const userAgent string = "Probius; https://github.com/dragaera/probius"
 
 type Replay struct {
 	ReplayURL     string         `json:"replay_url"`
@@ -326,6 +327,8 @@ func (api *API) call(path string) ([]byte, error) {
 	if err != nil {
 		return make([]byte, 0), fmt.Errorf("Error while creating HTTP request: %v", err)
 	}
+
+	req.Header.Set("User-Agent", userAgent)
 
 	req.Header.Add("Authorization", api.APIKey)
 	resp, err := api.getClient().Do(req)

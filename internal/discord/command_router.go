@@ -87,6 +87,17 @@ func (ctxt *CommandContext) Respond(msg string) error {
 	return err
 }
 
+func (ctxt *CommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
+	_, err := ctxt.Sess.ChannelMessageSendEmbed(
+		ctxt.Msg.ChannelID,
+		embed,
+	)
+
+	// TODO: Log error here, so we see it even if downstream commands don't show anything visible to the user?
+	// If yes, then dito for Respond() above
+	return err
+}
+
 func (ctxt *CommandContext) Channel() (*discordgo.Channel, error) {
 	return ctxt.Sess.Channel(ctxt.Msg.ChannelID)
 }

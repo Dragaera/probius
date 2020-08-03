@@ -120,6 +120,28 @@ func (bot *Bot) registerCommands() {
 			F:           bot.cmdAuth,
 		},
 	)
+
+	bot.cmdRouter.register(
+		Command{
+			Command:     "last",
+			Description: "Embeds the most-recently uploaded replay",
+			Usage:       "last",
+			MinArgs:     0,
+			MaxArgs:     0,
+			F:           bot.cmdLast,
+		},
+	)
+
+	bot.cmdRouter.register(
+		Command{
+			Command:     "replay",
+			Description: "Embds the replay with the given ID",
+			Usage:       "replay <id>",
+			MinArgs:     1,
+			MaxArgs:     1,
+			F:           bot.cmdReplay,
+		},
+	)
 }
 
 func (bot *Bot) InviteURL() string {

@@ -19,6 +19,7 @@ type Replay struct {
 	MapName       string         `json:"map_name"`
 	Format        string         `json:"format"`
 	GameType      GameType       `json:"game_type"`
+	WinningPlayer string         `json:"winning_player"`
 	Players       []ReplayPlayer `json:"players"`
 	SeasonId      int            `json:"seasons_id"`
 	ReplayDate    time.Time      `json:"replay_date"`
@@ -37,7 +38,6 @@ func (replay *Replay) PlayersByTeam() map[int][]ReplayPlayer {
 	out := make(map[int][]ReplayPlayer)
 
 	for _, pl := range replay.Players {
-		fmt.Printf("Checking player: %+v\n", pl)
 		out[pl.Team] = append(out[pl.Team], pl)
 
 	}

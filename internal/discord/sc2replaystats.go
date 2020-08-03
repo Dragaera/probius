@@ -113,9 +113,16 @@ func buildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {
 		Inline: true,
 	}
 
+	gameLengthField := discordgo.MessageEmbedField{
+		Name:   "Game Length",
+		Value:  fmt.Sprintf("%.0f min", replay.GameLength.Minutes()),
+		Inline: false,
+	}
+
 	fields := []*discordgo.MessageEmbedField{
 		&mapField,
 		&winnerField,
+		&gameLengthField,
 	}
 
 	mapThumbnail := discordgo.MessageEmbedThumbnail{

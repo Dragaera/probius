@@ -19,6 +19,7 @@ type Replay struct {
 	MapName       string         `json:"map_name"`
 	Format        string         `json:"format"`
 	GameType      GameType       `json:"game_type"`
+	GameLength    GameLength     `json:"game_length"`
 	WinningPlayer string         `json:"winning_player"`
 	Players       []ReplayPlayer `json:"players"`
 	SeasonId      int            `json:"seasons_id"`
@@ -229,6 +230,27 @@ func (gameType *GameType) UnmarshalJSON(b []byte) error {
 		*gameType = Private
 	default:
 		return fmt.Errorf("Invalid game type: %v", gameTypeString)
+	}
+
+	return nil
+}
+
+type GameLength struct {
+	time.Duration
+}
+
+func (gameLength *GameLength) UnmarshalJSON(b []byte) error {
+	var gameLengthSeconds float64
+	err := json.Unmarshal(b, &gameLengthSeconds)
+	if err != nil {
+		return err
+	}
+
+	// Durations are in nanoseconds. We could multiply, round, cast &
+	// assign ourselves, but this feels more comfortable.
+	gameLength.Duration, err = time.ParseDuration(fmt.Sprintf("%vs", gameLengthSeconds))
+	if err != nil {
+		return err
 	}
 
 	return nil

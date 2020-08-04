@@ -3,6 +3,7 @@ package discord
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"log"
 	"strings"
 )
 
@@ -40,6 +41,7 @@ func (router *CommandRouter) onMessageCreate(sess *discordgo.Session, m *discord
 }
 
 func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discordgo.Message) {
+	log.Printf("Processing command: %v", msg.Content)
 	// Get rid of prefix
 	cmdString := strings.Replace(msg.Content, commandPrefix, "", 1)
 	command := strings.Split(cmdString, " ")
@@ -47,7 +49,7 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 
 	cmd, ok := router.commands[command[0]]
 	if !ok {
-		fmt.Println("Unknown command:", command[0])
+		log.Printf("Unknown command: %v", command[0])
 		return
 	}
 
@@ -58,11 +60,13 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 	}
 
 	if cmd.MinArgs != -1 && len(args) < cmd.MinArgs {
+		log.Printf("Command %v: Too few arguments.", command[0])
 		ctxt.Respond(usage(&cmd))
 		return
 	}
 
 	if cmd.MaxArgs != -1 && len(args) > cmd.MaxArgs {
+		log.Printf("Command %v: Too many arguments.", command[0])
 		ctxt.Respond(usage(&cmd))
 		return
 	}
@@ -84,6 +88,10 @@ func (ctxt *CommandContext) Respond(msg string) error {
 		msg,
 	)
 
+	if err != nil {
+		log.Printf("Error while responding with message: %v", err)
+	}
+
 	return err
 }
 
@@ -93,8 +101,10 @@ func (ctxt *CommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
 		embed,
 	)
 
-	// TODO: Log error here, so we see it even if downstream commands don't show anything visible to the user?
-	// If yes, then dito for Respond() above
+	if err != nil {
+		log.Printf("Error while responding with embed: %v", err)
+	}
+
 	return err
 }
 
@@ -116,6 +126,7 @@ func (ctxt *CommandContext) InternalError(err error) {
 		"An internal error has happened while performing this operation.\nPlease report the following to 'Morrolan#3163':\n`%v`",
 		err,
 	)
+	log.Printf("Internal error: %v", err)
 	ctxt.Respond(msg)
 }
 

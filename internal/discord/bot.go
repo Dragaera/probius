@@ -6,6 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/config"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -34,8 +35,8 @@ func (bot *Bot) Run() error {
 		return fmt.Errorf("Error connecting to Discord:", err)
 	}
 
-	fmt.Println("Bot is running.")
-	fmt.Println("Invite me:", bot.InviteURL())
+	log.Print("Bot is running.")
+	log.Printf("Invite me: %v", bot.InviteURL())
 
 	// Terminate on ^c or SIGTERM
 	sc := make(chan os.Signal, 1)

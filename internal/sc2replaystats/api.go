@@ -12,6 +12,7 @@ import (
 )
 
 const baseURL string = "https://api.sc2replaystats.com"
+const userAgent string = "Probius; https://github.com/dragaera/probius"
 
 type Replay struct {
 	ReplayURL     string         `json:"replay_url"`
@@ -19,6 +20,8 @@ type Replay struct {
 	MapName       string         `json:"map_name"`
 	Format        string         `json:"format"`
 	GameType      GameType       `json:"game_type"`
+	GameLength    GameLength     `json:"game_length"`
+	WinningPlayer string         `json:"winning_player"`
 	Players       []ReplayPlayer `json:"players"`
 	SeasonId      int            `json:"seasons_id"`
 	ReplayDate    time.Time      `json:"replay_date"`
@@ -33,8 +36,19 @@ func (replay *Replay) Winner() *ReplayPlayer {
 	}
 }
 
+func (replay *Replay) PlayersByTeam() map[int][]ReplayPlayer {
+	out := make(map[int][]ReplayPlayer)
+
+	for _, pl := range replay.Players {
+		out[pl.Team] = append(out[pl.Team], pl)
+
+	}
+
+	return out
+}
+
 type ReplayPlayer struct {
-	Id         int         `json:"players_id"`
+	ID         int         `json:"players_id"`
 	ClanTag    string      `json:"clan"`
 	Race       Race        `json:"race"`
 	Mmr        int         `json:"mmr"`
@@ -115,6 +129,20 @@ func (race Race) String() string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (race Race) Shorthand() string {
+	switch race {
+	case Protoss:
+		return "P"
+	case Terran:
+		return "T"
+	case Zerg:
+		return "Z"
+	default:
+		return "Unkwown"
+	}
+
 }
 
 func (race *Race) UnmarshalJSON(b []byte) error {
@@ -208,15 +236,59 @@ func (gameType *GameType) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type GameLength struct {
+	time.Duration
+}
+
+func (gameLength *GameLength) UnmarshalJSON(b []byte) error {
+	var gameLengthSeconds float64
+	err := json.Unmarshal(b, &gameLengthSeconds)
+	if err != nil {
+		return err
+	}
+
+	// Durations are in nanoseconds. We could multiply, round, cast &
+	// assign ourselves, but this feels more comfortable.
+	gameLength.Duration, err = time.ParseDuration(fmt.Sprintf("%vs", gameLengthSeconds))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type API struct {
 	APIKey string
 	client *http.Client
+}
+
+func (api *API) Verify() bool {
+	_, err := api.Player(1)
+	return err == nil
 }
 
 func (api *API) LastReplay() (Replay, error) {
 	var replay Replay
 
 	body, err := api.call("account/last-replay")
+	if err != nil {
+		// No need to wrap, errors returned by call() should be plenty
+		// descriptive
+		return replay, err
+	}
+
+	err = json.Unmarshal(body, &replay)
+	if err != nil {
+		return replay, fmt.Errorf("Error while unmarshalling JSON: %v", err)
+	}
+
+	return replay, nil
+}
+
+func (api *API) Replay(id int) (Replay, error) {
+	var replay Replay
+
+	body, err := api.call(fmt.Sprintf("replay/%v", id))
 	if err != nil {
 		// No need to wrap, errors returned by call() should be plenty
 		// descriptive
@@ -255,6 +327,8 @@ func (api *API) call(path string) ([]byte, error) {
 	if err != nil {
 		return make([]byte, 0), fmt.Errorf("Error while creating HTTP request: %v", err)
 	}
+
+	req.Header.Set("User-Agent", userAgent)
 
 	req.Header.Add("Authorization", api.APIKey)
 	resp, err := api.getClient().Do(req)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/dragaera/probius/internal/config"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"os"
 	"os/signal"
@@ -12,9 +13,7 @@ import (
 )
 
 type Bot struct {
-	ClientID  string
-	Token     string
-	DBURL     string
+	Config    config.Config
 	Session   *discordgo.Session
 	cmdRouter *CommandRouter
 	db        *pgxpool.Pool
@@ -49,16 +48,16 @@ func (bot *Bot) Run() error {
 }
 
 func Create(bot *Bot) (*Bot, error) {
-	if len(bot.ClientID) == 0 {
+	if len(bot.Config.Discord.ClientID) == 0 {
 		return bot, fmt.Errorf("ClientID must not be nil.")
 	}
 
-	if len(bot.Token) == 0 {
+	if len(bot.Config.Discord.Token) == 0 {
 		return bot, fmt.Errorf("Token must not be nil.")
 	}
 
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + bot.Token)
+	dg, err := discordgo.New("Bot " + bot.Config.Discord.Token)
 	if err != nil {
 		return bot, fmt.Errorf("Error creating Discord session:", err)
 	}
@@ -90,7 +89,7 @@ func (bot *Bot) initializeCommands() error {
 }
 
 func (bot *Bot) initializePersistence() error {
-	dbpool, err := pgxpool.Connect(context.Background(), bot.DBURL)
+	dbpool, err := pgxpool.Connect(context.Background(), bot.Config.DB.DBURL())
 	if err != nil {
 		return fmt.Errorf("Unable to connect to database:", err)
 	}
@@ -145,7 +144,7 @@ func (bot *Bot) registerCommands() {
 }
 
 func (bot *Bot) InviteURL() string {
-	return fmt.Sprintf("https://discordapp.com/oauth2/authorize?client_id=%v&scope=bot", bot.ClientID)
+	return fmt.Sprintf("https://discordapp.com/oauth2/authorize?client_id=%v&scope=bot", bot.Config.Discord.ClientID)
 }
 
 func (bot *Bot) cmdHelp(ctxt CommandContext) bool {

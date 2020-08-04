@@ -5,8 +5,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/persistence"
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
+	"log"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
@@ -129,11 +131,13 @@ func buildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {
 		URL: mapThumbnailURL(replay.MapName),
 	}
 
+	// time.String() returns some wonky go-specific format, while the API
+	// obviously expects ISO8601 / RFC3339.
+	ts := replay.ReplayDate.Format(time.RFC3339)
 	embed := discordgo.MessageEmbed{
-		URL:   replay.ReplayURL,
-		Title: constructReplayTitle(api, replay),
-		Color: 666,
-		// Timestamp: replay.ReplayDate.String(),
+		URL:       replay.ReplayURL,
+		Title:     constructReplayTitle(api, replay),
+		Timestamp: ts,
 		Thumbnail: &mapThumbnail,
 		Fields:    fields,
 	}
@@ -150,11 +154,23 @@ func constructReplayTitle(api sc2r.API, replay sc2r.Replay) string {
 		playerMonikers := make([]string, len(replayPlayers))
 
 		for playerIdx, replayPlayer := range replayPlayers {
-			playerName := "Unknown player"
-			// Player name is not part of ReplayPlayer type
-			player, err := api.Player(replayPlayer.ID)
-			if err == nil {
-				playerName = player.Name
+			playerName := replayPlayer.Player.Name
+			if len(playerName) == 0 {
+				// `/last-replay` endpoint exposes per-player
+				// information, whereas `/replay/$id` endpoint
+				// only exposes replay-player information.
+
+				log.Printf(
+					"API response did not contain player names, querying API for details of player with ID = %v",
+					replayPlayer.ID,
+				)
+
+				player, err := api.Player(replayPlayer.ID)
+				if err == nil {
+					playerName = player.Name
+				} else {
+					playerName = "Unknown player"
+				}
 			}
 
 			playerMonikers[playerIdx] = fmt.Sprintf("[%v] %v", replayPlayer.Race.Shorthand(), playerName)

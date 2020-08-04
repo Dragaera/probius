@@ -59,6 +59,7 @@ type ReplayPlayer struct {
 	Team       int         `json:"team"`
 	Winner     SC2RBool    `json:"winner"`
 	Color      PlayerColor `json:"color"`
+	Player     Player      `json:"player"` /* Only present in `/account/last-replay` endpoint */
 }
 
 type Player struct {

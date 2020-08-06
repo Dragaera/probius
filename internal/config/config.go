@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 )
 
 type Config struct {
 	DB      DBConfig
 	Discord DiscordConfig
+	Redis   RedisConfig
+	Worker  WorkerConfig
 }
 
 type DiscordConfig struct {
@@ -22,6 +25,16 @@ type DBConfig struct {
 	Host     string
 	Port     string
 	Database string
+}
+
+type RedisConfig struct {
+	Host string
+	Port string
+}
+
+type WorkerConfig struct {
+	Concurrency int
+	Namespace   string
 }
 
 func (cfg *DBConfig) DBURL() string {
@@ -49,9 +62,19 @@ func ConfigFromEnv() Config {
 	dbCfg.Port = fromEnvWithDefault("DB_PORT", "5432")
 	dbCfg.Database = fromEnvWithDefault("DB_DATABASE", "probius")
 
+	redisCfg := RedisConfig{}
+	redisCfg.Host = fromEnvWithDefault("REDIS_HOST", "127.0.0.1")
+	redisCfg.Port = fromEnvWithDefault("REDIS_PORT", "6379")
+
+	workerCfg := WorkerConfig{}
+	workerCfg.Concurrency = intFromEnvWithDefault("WORKER_CONCURRENCY", 5)
+	workerCfg.Namespace = fromEnvWithDefault("WORKER_NAMESPACE", "probius")
+
 	cfg := Config{
 		DB:      dbCfg,
 		Discord: discordCfg,
+		Redis:   redisCfg,
+		Worker:  workerCfg,
 	}
 
 	return cfg
@@ -71,6 +94,28 @@ func fromEnvWithDefault(key string, fallback string) string {
 	if !ok {
 		log.Printf("Using default value for key: %v = %v", key, fallback)
 		val = fallback
+	}
+
+	return val
+}
+
+func intFromEnv(key string) int {
+	str := fromEnv(key)
+
+	val, err := strconv.Atoi(str)
+	if err != nil {
+		log.Fatalf("Unable to convert value of %v to int: %v", key, err)
+	}
+
+	return val
+}
+
+func intFromEnvWithDefault(key string, fallback int) int {
+	str := fromEnvWithDefault(key, strconv.FormatInt(int64(fallback), 10))
+
+	val, err := strconv.Atoi(str)
+	if err != nil {
+		log.Fatalf("Unable to convert value of %v to int: %v", key, err)
 	}
 
 	return val

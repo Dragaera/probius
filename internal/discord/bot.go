@@ -1,7 +1,6 @@
 package discord
 
 import (
-	"context"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/config"
@@ -20,14 +19,12 @@ type Bot struct {
 	db        *pgxpool.Pool
 }
 
-func (bot *Bot) Run() error {
+func (bot *Bot) Run(db *pgxpool.Pool) error {
 	if bot.Session == nil {
 		return fmt.Errorf("Bot not initiated, be sure to use discord.Create(...)")
 	}
 
-	if err := bot.initializePersistence(); err != nil {
-		return err
-	}
+	bot.db = db
 	defer bot.db.Close()
 
 	err := bot.Session.Open()
@@ -86,15 +83,6 @@ func (bot *Bot) initializeCommands() error {
 	// And hook up commands
 	bot.registerCommands()
 
-	return nil
-}
-
-func (bot *Bot) initializePersistence() error {
-	dbpool, err := pgxpool.Connect(context.Background(), bot.Config.DB.DBURL())
-	if err != nil {
-		return fmt.Errorf("Unable to connect to database:", err)
-	}
-	bot.db = dbpool
 	return nil
 }
 

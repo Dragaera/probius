@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/dragaera/probius/internal/config"
 	"github.com/dragaera/probius/internal/discord"
+	"github.com/dragaera/probius/internal/persistence"
 	"github.com/joho/godotenv"
 	"log"
 )
@@ -23,9 +24,14 @@ func main() {
 		log.Fatal("Error while creating Discord bot: ", err)
 	}
 
+	db, err := persistence.InitializeDB(cfg.DB.DBURL())
+	if err != nil {
+		log.Fatal("Error while initializing persistence layer: ", err)
+	}
+
 	log.Print("Starting Discord bot.")
 
-	err = bot.Run()
+	err = bot.Run(db)
 	if err != nil {
 		log.Fatal("Error while starting Discord bot: ", err)
 	}

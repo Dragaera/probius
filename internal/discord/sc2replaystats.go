@@ -31,7 +31,7 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 	}
 
 	discordId := ctxt.Msg.Author.ID
-	user, err := persistence.GetOrCreateSC2ReplayStatsUser(bot.db, discordId, apiKey)
+	user, err := persistence.GetOrCreateSC2ReplayStatsUser(bot.db, ctxt.Msg.Author.ID, apiKey)
 	if err != nil {
 		ctxt.InternalError(err)
 		return true

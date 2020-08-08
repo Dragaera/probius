@@ -184,5 +184,35 @@ func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) error {
 	}
 	ctxt.User = &user
 
+	var guild persistence.DiscordGuild
+	if len(ctxt.Msg.GuildID) == 0 {
+		// Message sent in a DM. For DMs we have a fake guild with ID 0.
+		guild, err = persistence.GetDiscordGuild(bot.db, "0")
+		if err != nil {
+			return fmt.Errorf("Unable to retrieve DM guild from DB: %v", err)
+		}
+	} else {
+		dgoGuild, err := bot.Session.Guild(ctxt.Msg.GuildID)
+		if err != nil {
+			return fmt.Errorf("Unable to query guild details from API: %v", err)
+		}
+
+		guild, err = persistence.DiscordGuildFromDgo(bot.db, dgoGuild)
+		if err != nil {
+			return fmt.Errorf("Unable to enrich context with guild: %v", err)
+		}
+	}
+	ctxt.Guild = &guild
+
+	dgoChannel, err := bot.Session.Channel(ctxt.Msg.ChannelID)
+	if err != nil {
+		return fmt.Errorf("Unable to query channel details from API: %v", err)
+	}
+	channel, err := persistence.DiscordChannelFromDgo(bot.db, dgoChannel)
+	if err != nil {
+		return fmt.Errorf("Unable to enrich context with channel: %v", err)
+	}
+	ctxt.Channel = &channel
+
 	return nil
 }

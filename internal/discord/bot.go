@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/config"
+	"github.com/dragaera/probius/internal/persistence"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"log"
 	"os"
@@ -77,13 +78,20 @@ func (bot *Bot) initializeCommands() error {
 	// Prepare command router
 	router := CommandRouter{}
 	router.commands = make(map[string]Command)
+	router.middlewares = make([]Middleware, 0)
+
 	bot.cmdRouter = &router
 	bot.Session.AddHandler(bot.cmdRouter.onMessageCreate)
 
-	// And hook up commands
+	// And hook up commands and middlewares
 	bot.registerCommands()
+	bot.registerMiddlewares()
 
 	return nil
+}
+
+func (bot *Bot) registerMiddlewares() {
+	bot.cmdRouter.registerMiddleware(bot.enrichContext)
 }
 
 func (bot *Bot) registerCommands() {
@@ -167,4 +175,14 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 
 	ctxt.Sess.ChannelMessageSend(ctxt.Msg.ChannelID, out.String())
 	return true
+}
+
+func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) error {
+	user, err := persistence.DiscordUserFromDgo(bot.db, ctxt.Msg.Author)
+	if err != nil {
+		return fmt.Errorf("Unable to enrich context with user: %v", err)
+	}
+	ctxt.User = &user
+
+	return nil
 }

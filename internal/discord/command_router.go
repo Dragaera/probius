@@ -3,6 +3,7 @@ package discord
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/dragaera/probius/internal/persistence"
 	"log"
 	"strings"
 )
@@ -18,8 +19,11 @@ type Command struct {
 	F           func(ctxt CommandContext) bool
 }
 
+type Middleware func(cmd Command, ctxt CommandContext) error
+
 type CommandRouter struct {
-	commands map[string]Command
+	commands    map[string]Command
+	middlewares []Middleware
 }
 
 func (router *CommandRouter) register(cmd Command) error {
@@ -30,6 +34,10 @@ func (router *CommandRouter) register(cmd Command) error {
 	router.commands[cmd.Command] = cmd
 
 	return nil
+}
+
+func (router *CommandRouter) registerMiddleware(m Middleware) {
+	router.middlewares = append(router.middlewares, m)
 }
 
 func (router *CommandRouter) onMessageCreate(sess *discordgo.Session, m *discordgo.MessageCreate) {
@@ -71,15 +79,27 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 		return
 	}
 
+	for _, m := range router.middlewares {
+		err := m(cmd, ctxt)
+		if err != nil {
+			log.Printf("Middleware %v failed: %v. Aborting command.\n", m, err)
+			ctxt.InternalError(err)
+			return
+		}
+	}
+
 	if ok := cmd.F(ctxt); !ok {
 		ctxt.Respond(usage(&cmd))
 	}
 }
 
 type CommandContext struct {
-	Sess *discordgo.Session
-	Msg  *discordgo.Message
-	Args []string
+	Sess    *discordgo.Session
+	Msg     *discordgo.Message
+	Args    []string
+	Guild   *persistence.DiscordGuild
+	Channel *persistence.DiscordChannel
+	User    *persistence.DiscordUser
 }
 
 func (ctxt *CommandContext) Respond(msg string) error {
@@ -108,12 +128,13 @@ func (ctxt *CommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
 	return err
 }
 
-func (ctxt *CommandContext) Channel() (*discordgo.Channel, error) {
+// Get channel details from API
+func (ctxt *CommandContext) GetChannel() (*discordgo.Channel, error) {
 	return ctxt.Sess.Channel(ctxt.Msg.ChannelID)
 }
 
 func (ctxt *CommandContext) IsDM() (bool, error) {
-	channel, err := ctxt.Channel()
+	channel, err := ctxt.GetChannel()
 	if err != nil {
 		return false, err
 	}

@@ -19,7 +19,7 @@ type SC2ReplayStatsUser struct {
 func GetSC2ReplayStatsUser(db *pgxpool.Pool, discordId string) (SC2ReplayStatsUser, error) {
 	u := SC2ReplayStatsUser{}
 
-	du, err := GetOrCreateDiscordUser(db, discordId)
+	du, err := GetDiscordUser(db, discordId)
 	if err != nil {
 		return u, fmt.Errorf("Unable to get SC2Replaystats user: %v", err)
 	}
@@ -56,7 +56,7 @@ func GetOrCreateSC2ReplayStatsUser(db *pgxpool.Pool, discordId string, apiKey st
 }
 
 func CreateSC2ReplayStatsUser(db *pgxpool.Pool, discordId string, apiKey string) error {
-	du, err := GetOrCreateDiscordUser(db, discordId)
+	du, err := GetDiscordUser(db, discordId)
 	if err != nil {
 		return fmt.Errorf("Unable to create SC2Replaystats user: %v", err)
 	}

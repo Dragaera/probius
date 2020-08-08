@@ -131,7 +131,7 @@ func (bot *Bot) registerCommands() {
 	bot.cmdRouter.register(
 		Command{
 			Command:     "replay",
-			Description: "Embds the replay with the given ID",
+			Description: "Embeds the replay with the given ID",
 			Usage:       "replay <id>",
 			MinArgs:     1,
 			MaxArgs:     1,
@@ -177,7 +177,7 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) error {
+func (bot *Bot) enrichContext(cmd Command, ctxt *CommandContext) error {
 	user, err := persistence.DiscordUserFromDgo(bot.db, ctxt.Msg.Author)
 	if err != nil {
 		return fmt.Errorf("Unable to enrich context with user: %v", err)

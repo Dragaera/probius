@@ -19,7 +19,7 @@ type Command struct {
 	F           func(ctxt CommandContext) bool
 }
 
-type Middleware func(cmd Command, ctxt CommandContext) error
+type Middleware func(cmd Command, ctxt *CommandContext) error
 
 type CommandRouter struct {
 	commands    map[string]Command
@@ -80,7 +80,7 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 	}
 
 	for _, m := range router.middlewares {
-		err := m(cmd, ctxt)
+		err := m(cmd, &ctxt)
 		if err != nil {
 			log.Printf("Middleware %v failed: %v. Aborting command.\n", m, err)
 			ctxt.InternalError(err)
@@ -126,20 +126,6 @@ func (ctxt *CommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
 	}
 
 	return err
-}
-
-// Get channel details from API
-func (ctxt *CommandContext) GetChannel() (*discordgo.Channel, error) {
-	return ctxt.Sess.Channel(ctxt.Msg.ChannelID)
-}
-
-func (ctxt *CommandContext) IsDM() (bool, error) {
-	channel, err := ctxt.GetChannel()
-	if err != nil {
-		return false, err
-	}
-
-	return channel.Type == discordgo.ChannelTypeDM, nil
 }
 
 func (ctxt *CommandContext) InternalError(err error) {

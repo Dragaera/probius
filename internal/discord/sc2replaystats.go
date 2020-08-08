@@ -14,12 +14,7 @@ import (
 func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 	apiKey := ctxt.Args[0]
 
-	isDM, err := ctxt.IsDM()
-	if err != nil {
-		ctxt.InternalError(err)
-		return true
-	}
-	if !isDM {
+	if !ctxt.Channel.IsDM {
 		ctxt.Respond("**Only use this command via DM**.\nIf you used this command in a public channel, you might have just exposed your API key. If so, please reset it on the profile page and try again via direct message.")
 		return true
 	}
@@ -30,8 +25,7 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 		return true
 	}
 
-	discordId := ctxt.Msg.Author.ID
-	user, err := persistence.GetOrCreateSC2ReplayStatsUser(bot.db, ctxt.Msg.Author.ID, apiKey)
+	user, err := persistence.GetOrCreateSC2ReplayStatsUser(bot.db, ctxt.User, apiKey)
 	if err != nil {
 		ctxt.InternalError(err)
 		return true
@@ -45,12 +39,12 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 		}
 	}
 
-	ctxt.Respond(fmt.Sprintf("Successfully set API key of Discord user %v to %v", discordId, apiKey))
+	ctxt.Respond(fmt.Sprintf("Successfully set API key of Discord user %v to %v", ctxt.User.DiscordID, apiKey))
 	return true
 }
 
 func (bot *Bot) cmdLast(ctxt CommandContext) bool {
-	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.Msg.Author.ID)
+	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.User)
 	if err != nil {
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
 		return true
@@ -73,7 +67,7 @@ func (bot *Bot) cmdLast(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
-	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.Msg.Author.ID)
+	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.User)
 	if err != nil {
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
 		return true

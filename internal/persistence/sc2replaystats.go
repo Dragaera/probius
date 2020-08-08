@@ -16,18 +16,13 @@ type SC2ReplayStatsUser struct {
 	CreatedAt     time.Time
 }
 
-func GetSC2ReplayStatsUser(db *pgxpool.Pool, discordID string) (SC2ReplayStatsUser, error) {
+func GetSC2ReplayStatsUser(db *pgxpool.Pool, discordUser *DiscordUser) (SC2ReplayStatsUser, error) {
 	u := SC2ReplayStatsUser{}
 
-	du, err := GetDiscordUser(db, discordID)
-	if err != nil {
-		return u, fmt.Errorf("Unable to get SC2Replaystats user: %v", err)
-	}
-
-	err = db.QueryRow(
+	err := db.QueryRow(
 		context.Background(),
 		"SELECT id, discord_user_id, api_key, last_replay_id, created_at FROM sc2replaystats_users WHERE discord_user_id=$1",
-		du.ID,
+		discordUser.ID,
 	).Scan(&u.ID, &u.DiscordUserID, &u.APIKey, &u.LastReplayID, &u.CreatedAt)
 
 	if err == pgx.ErrNoRows {
@@ -40,11 +35,11 @@ func GetSC2ReplayStatsUser(db *pgxpool.Pool, discordID string) (SC2ReplayStatsUs
 	return u, nil
 }
 
-func GetOrCreateSC2ReplayStatsUser(db *pgxpool.Pool, discordID string, apiKey string) (SC2ReplayStatsUser, error) {
-	u, err := GetSC2ReplayStatsUser(db, discordID)
+func GetOrCreateSC2ReplayStatsUser(db *pgxpool.Pool, discordUser *DiscordUser, apiKey string) (SC2ReplayStatsUser, error) {
+	u, err := GetSC2ReplayStatsUser(db, discordUser)
 
 	if err == pgx.ErrNoRows {
-		err = CreateSC2ReplayStatsUser(db, discordID, apiKey)
+		err = CreateSC2ReplayStatsUser(db, discordUser, apiKey)
 	}
 
 	// Either the getting failed (with an error other than ErrNoRows), or creation failed
@@ -52,19 +47,14 @@ func GetOrCreateSC2ReplayStatsUser(db *pgxpool.Pool, discordID string, apiKey st
 		return u, fmt.Errorf("Unable to get/create SC2ReplayStats user: %v", err)
 	}
 
-	return GetSC2ReplayStatsUser(db, discordID)
+	return GetSC2ReplayStatsUser(db, discordUser)
 }
 
-func CreateSC2ReplayStatsUser(db *pgxpool.Pool, discordID string, apiKey string) error {
-	du, err := GetDiscordUser(db, discordID)
-	if err != nil {
-		return fmt.Errorf("Unable to create SC2Replaystats user: %v", err)
-	}
-
-	_, err = db.Exec(
+func CreateSC2ReplayStatsUser(db *pgxpool.Pool, discordUser *DiscordUser, apiKey string) error {
+	_, err := db.Exec(
 		context.Background(),
 		"INSERT INTO sc2replaystats_users (discord_user_id, api_key) VALUES ($1, $2)",
-		du.ID,
+		discordUser.ID,
 		apiKey,
 	)
 

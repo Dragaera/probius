@@ -124,6 +124,7 @@ func (bot *Bot) registerCommands() {
 			Usage:       "last",
 			MinArgs:     0,
 			MaxArgs:     0,
+			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdLast,
 		},
 	)
@@ -135,7 +136,20 @@ func (bot *Bot) registerCommands() {
 			Usage:       "replay <id>",
 			MinArgs:     1,
 			MaxArgs:     1,
+			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdReplay,
+		},
+	)
+
+	bot.cmdRouter.register(
+		Command{
+			Command:     "track",
+			Description: "Automatically posts new replays in channel",
+			Usage:       "track",
+			MinArgs:     0,
+			MaxArgs:     0,
+			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
+			F:           bot.cmdTrack,
 		},
 	)
 }
@@ -147,7 +161,7 @@ func (bot *Bot) InviteURL() string {
 func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	out := strings.Builder{}
 
-	switch len(ctxt.Args) {
+	switch len(ctxt.Args()) {
 	case 0:
 		// Command list
 		out.WriteString("Available commands:\n")
@@ -161,7 +175,7 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 			)
 		}
 	case 1:
-		cmdIdentifier := ctxt.Args[0]
+		cmdIdentifier := ctxt.Args()[0]
 		// Help about one command
 		if cmd, ok := bot.cmdRouter.commands[cmdIdentifier]; ok {
 			fmt.Fprintf(&out, "%v: %v\n", cmd.Command, cmd.Description)
@@ -173,46 +187,46 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 		return false
 	}
 
-	ctxt.Sess.ChannelMessageSend(ctxt.Msg.ChannelID, out.String())
+	ctxt.Sess().ChannelMessageSend(ctxt.Msg().ChannelID, out.String())
 	return true
 }
 
-func (bot *Bot) enrichContext(cmd Command, ctxt *CommandContext) error {
-	user, err := persistence.DiscordUserFromDgo(bot.db, ctxt.Msg.Author)
+func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) error {
+	user, err := persistence.DiscordUserFromDgo(bot.db, ctxt.Msg().Author)
 	if err != nil {
 		return fmt.Errorf("Unable to enrich context with user: %v", err)
 	}
-	ctxt.User = &user
+	ctxt.SetUser(&user)
 
 	var guild persistence.DiscordGuild
-	if len(ctxt.Msg.GuildID) == 0 {
+	if len(ctxt.Msg().GuildID) == 0 {
 		// Message sent in a DM. For DMs we have a fake guild with ID 0.
 		guild, err = persistence.GetDiscordGuild(bot.db, "0")
 		if err != nil {
-			return fmt.Errorf("Unable to retrieve DM guild from DB: %v", err)
+			return ctxt.InternalError(fmt.Errorf("Unable to retrieve DM guild from DB: %v", err))
 		}
 	} else {
-		dgoGuild, err := bot.Session.Guild(ctxt.Msg.GuildID)
+		dgoGuild, err := bot.Session.Guild(ctxt.Msg().GuildID)
 		if err != nil {
-			return fmt.Errorf("Unable to query guild details from API: %v", err)
+			return ctxt.InternalError(fmt.Errorf("Unable to query guild details from API: %v", err))
 		}
 
 		guild, err = persistence.DiscordGuildFromDgo(bot.db, dgoGuild)
 		if err != nil {
-			return fmt.Errorf("Unable to enrich context with guild: %v", err)
+			return ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err))
 		}
 	}
-	ctxt.Guild = &guild
+	ctxt.SetGuild(&guild)
 
-	dgoChannel, err := bot.Session.Channel(ctxt.Msg.ChannelID)
+	dgoChannel, err := bot.Session.Channel(ctxt.Msg().ChannelID)
 	if err != nil {
-		return fmt.Errorf("Unable to query channel details from API: %v", err)
+		return ctxt.InternalError(fmt.Errorf("Unable to query channel details from API: %v", err))
 	}
 	channel, err := persistence.DiscordChannelFromDgo(bot.db, dgoChannel)
 	if err != nil {
-		return fmt.Errorf("Unable to enrich context with channel: %v", err)
+		return ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err))
 	}
-	ctxt.Channel = &channel
+	ctxt.SetChannel(&channel)
 
 	return nil
 }

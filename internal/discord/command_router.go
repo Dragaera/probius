@@ -16,10 +16,11 @@ type Command struct {
 	Usage       string
 	MinArgs     int
 	MaxArgs     int
+	Middleware  []Middleware
 	F           func(ctxt CommandContext) bool
 }
 
-type Middleware func(cmd Command, ctxt *CommandContext) error
+type Middleware func(cmd Command, ctxt CommandContext) error
 
 type CommandRouter struct {
 	commands    map[string]Command
@@ -61,10 +62,10 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 		return
 	}
 
-	ctxt := CommandContext{
-		Sess: sess,
-		Msg:  msg,
-		Args: args,
+	ctxt := BaseCommandContext{
+		sess: sess,
+		msg:  msg,
+		args: args,
 	}
 
 	if cmd.MinArgs != -1 && len(args) < cmd.MinArgs {
@@ -82,29 +83,102 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 	for _, m := range router.middlewares {
 		err := m(cmd, &ctxt)
 		if err != nil {
-			log.Printf("Middleware %v failed: %v. Aborting command.\n", m, err)
-			ctxt.InternalError(err)
+			log.Printf("Bot middleware %v failed: %v. Aborting command.\n", m, err)
 			return
 		}
 	}
 
-	if ok := cmd.F(ctxt); !ok {
+	for _, m := range cmd.Middleware {
+		err := m(cmd, &ctxt)
+		if err != nil {
+			log.Printf("Command middleware %v failed: %v. Aborting command.\n", m, err)
+			return
+		}
+	}
+
+	if ok := cmd.F(&ctxt); !ok {
 		ctxt.Respond(usage(&cmd))
 	}
 }
 
-type CommandContext struct {
-	Sess    *discordgo.Session
-	Msg     *discordgo.Message
-	Args    []string
-	Guild   *persistence.DiscordGuild
-	Channel *persistence.DiscordChannel
-	User    *persistence.DiscordUser
+type CommandContext interface {
+	SetSess(*discordgo.Session)
+	Sess() *discordgo.Session
+
+	SetMsg(*discordgo.Message)
+	Msg() *discordgo.Message
+
+	SetArgs([]string)
+	Args() []string
+
+	SetGuild(*persistence.DiscordGuild)
+	Guild() *persistence.DiscordGuild
+
+	SetChannel(*persistence.DiscordChannel)
+	Channel() *persistence.DiscordChannel
+
+	SetUser(*persistence.DiscordUser)
+	User() *persistence.DiscordUser
+
+	Respond(string) error
+	RespondEmbed(*discordgo.MessageEmbed) error
+	InternalError(error) error
 }
 
-func (ctxt *CommandContext) Respond(msg string) error {
-	_, err := ctxt.Sess.ChannelMessageSend(
-		ctxt.Msg.ChannelID,
+type BaseCommandContext struct {
+	sess    *discordgo.Session
+	msg     *discordgo.Message
+	args    []string
+	guild   *persistence.DiscordGuild
+	channel *persistence.DiscordChannel
+	user    *persistence.DiscordUser
+}
+
+func (ctxt *BaseCommandContext) SetSess(sess *discordgo.Session) {
+	ctxt.sess = sess
+}
+func (ctxt *BaseCommandContext) Sess() *discordgo.Session {
+	return ctxt.sess
+}
+
+func (ctxt *BaseCommandContext) SetMsg(msg *discordgo.Message) {
+	ctxt.msg = msg
+}
+func (ctxt *BaseCommandContext) Msg() *discordgo.Message {
+	return ctxt.msg
+}
+
+func (ctxt *BaseCommandContext) SetArgs(args []string) {
+	ctxt.args = args
+}
+func (ctxt *BaseCommandContext) Args() []string {
+	return ctxt.args
+}
+
+func (ctxt *BaseCommandContext) SetGuild(guild *persistence.DiscordGuild) {
+	ctxt.guild = guild
+}
+func (ctxt *BaseCommandContext) Guild() *persistence.DiscordGuild {
+	return ctxt.guild
+}
+
+func (ctxt *BaseCommandContext) SetChannel(channel *persistence.DiscordChannel) {
+	ctxt.channel = channel
+}
+func (ctxt *BaseCommandContext) Channel() *persistence.DiscordChannel {
+	return ctxt.channel
+}
+
+func (ctxt *BaseCommandContext) SetUser(user *persistence.DiscordUser) {
+	ctxt.user = user
+}
+func (ctxt *BaseCommandContext) User() *persistence.DiscordUser {
+	return ctxt.user
+}
+
+func (ctxt *BaseCommandContext) Respond(msg string) error {
+	_, err := ctxt.Sess().ChannelMessageSend(
+		ctxt.Msg().ChannelID,
 		msg,
 	)
 
@@ -115,9 +189,9 @@ func (ctxt *CommandContext) Respond(msg string) error {
 	return err
 }
 
-func (ctxt *CommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
-	_, err := ctxt.Sess.ChannelMessageSendEmbed(
-		ctxt.Msg.ChannelID,
+func (ctxt *BaseCommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
+	_, err := ctxt.Sess().ChannelMessageSendEmbed(
+		ctxt.Msg().ChannelID,
 		embed,
 	)
 
@@ -128,13 +202,15 @@ func (ctxt *CommandContext) RespondEmbed(embed *discordgo.MessageEmbed) error {
 	return err
 }
 
-func (ctxt *CommandContext) InternalError(err error) {
+func (ctxt *BaseCommandContext) InternalError(err error) error {
 	msg := fmt.Sprintf(
 		"An internal error has happened while performing this operation.\nPlease report the following to 'Morrolan#3163':\n`%v`",
 		err,
 	)
 	log.Printf("Internal error: %v", err)
 	ctxt.Respond(msg)
+
+	return err
 }
 
 func usage(cmd *Command) string {

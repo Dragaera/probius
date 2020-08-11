@@ -20,7 +20,7 @@ type Command struct {
 	F           func(ctxt CommandContext) bool
 }
 
-type Middleware func(cmd Command, ctxt CommandContext) error
+type Middleware func(cmd Command, ctxt CommandContext) (error, CommandContext)
 
 type CommandRouter struct {
 	commands    map[string]Command
@@ -62,7 +62,8 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 		return
 	}
 
-	ctxt := BaseCommandContext{
+	var ctxt CommandContext
+	ctxt = &BaseCommandContext{
 		sess: sess,
 		msg:  msg,
 		args: args,
@@ -81,7 +82,9 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 	}
 
 	for _, m := range router.middlewares {
-		err := m(cmd, &ctxt)
+		// Assigning directly to `ctxt` will lead to a 'declared but not used' error
+		err, newCtxt := m(cmd, ctxt)
+		ctxt = newCtxt
 		if err != nil {
 			log.Printf("Bot middleware %v failed: %v. Aborting command.\n", m, err)
 			return
@@ -89,14 +92,16 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 	}
 
 	for _, m := range cmd.Middleware {
-		err := m(cmd, &ctxt)
+		// Assigning directly to `ctxt` will lead to a 'declared but not used' error
+		err, newCtxt := m(cmd, ctxt)
+		ctxt = newCtxt
 		if err != nil {
 			log.Printf("Command middleware %v failed: %v. Aborting command.\n", m, err)
 			return
 		}
 	}
 
-	if ok := cmd.F(&ctxt); !ok {
+	if ok := cmd.F(ctxt); !ok {
 		ctxt.Respond(usage(&cmd))
 	}
 }

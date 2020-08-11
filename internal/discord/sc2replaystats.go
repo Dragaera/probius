@@ -103,7 +103,7 @@ func (bot *Bot) cmdTrack(ctxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) error {
+func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (error, CommandContext) {
 	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.User())
 	if err != nil {
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
@@ -111,7 +111,7 @@ func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) error
 
 	log.Printf("Got user: %+v", user)
 
-	return err
+	return err, ctxt
 }
 
 func getSC2RUserOrError(db *pgxpool.Pool, ctxt CommandContext) (persistence.SC2ReplayStatsUser, error) {

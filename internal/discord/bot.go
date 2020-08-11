@@ -191,10 +191,10 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) error {
+func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) (error, CommandContext) {
 	user, err := persistence.DiscordUserFromDgo(bot.db, ctxt.Msg().Author)
 	if err != nil {
-		return fmt.Errorf("Unable to enrich context with user: %v", err)
+		return fmt.Errorf("Unable to enrich context with user: %v", err), ctxt
 	}
 	ctxt.SetUser(&user)
 
@@ -203,30 +203,30 @@ func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) error {
 		// Message sent in a DM. For DMs we have a fake guild with ID 0.
 		guild, err = persistence.GetDiscordGuild(bot.db, "0")
 		if err != nil {
-			return ctxt.InternalError(fmt.Errorf("Unable to retrieve DM guild from DB: %v", err))
+			return ctxt.InternalError(fmt.Errorf("Unable to retrieve DM guild from DB: %v", err)), ctxt
 		}
 	} else {
 		dgoGuild, err := bot.Session.Guild(ctxt.Msg().GuildID)
 		if err != nil {
-			return ctxt.InternalError(fmt.Errorf("Unable to query guild details from API: %v", err))
+			return ctxt.InternalError(fmt.Errorf("Unable to query guild details from API: %v", err)), ctxt
 		}
 
 		guild, err = persistence.DiscordGuildFromDgo(bot.db, dgoGuild)
 		if err != nil {
-			return ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err))
+			return ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err)), ctxt
 		}
 	}
 	ctxt.SetGuild(&guild)
 
 	dgoChannel, err := bot.Session.Channel(ctxt.Msg().ChannelID)
 	if err != nil {
-		return ctxt.InternalError(fmt.Errorf("Unable to query channel details from API: %v", err))
+		return ctxt.InternalError(fmt.Errorf("Unable to query channel details from API: %v", err)), ctxt
 	}
 	channel, err := persistence.DiscordChannelFromDgo(bot.db, dgoChannel)
 	if err != nil {
-		return ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err))
+		return ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err)), ctxt
 	}
 	ctxt.SetChannel(&channel)
 
-	return nil
+	return nil, ctxt
 }

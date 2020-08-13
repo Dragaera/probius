@@ -14,9 +14,25 @@ import (
 
 type SC2RCommandContext struct {
 	BaseCommandContext
+	sc2ruser *persistence.SC2ReplayStatsUser
+}
+
+func (ctxt *SC2RCommandContext) SC2RUser() *persistence.SC2ReplayStatsUser {
+	return ctxt.sc2ruser
+}
+
+func (sc2rCtxt *SC2RCommandContext) initFromCommandContext(ctxt CommandContext) {
+	sc2rCtxt.SetSess(ctxt.Sess())
+	sc2rCtxt.SetMsg(ctxt.Msg())
+	sc2rCtxt.SetArgs(ctxt.Args())
+	sc2rCtxt.SetGuild(ctxt.Guild())
+	sc2rCtxt.SetChannel(ctxt.Channel())
+	sc2rCtxt.SetUser(ctxt.User())
 }
 
 func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
+	// NB: This command does not use the SC2R enrichment middleware, as it
+	// also has to work for users without a linked SC2R account.
 	apiKey := ctxt.Args()[0]
 
 	if !ctxt.Channel().IsDM {
@@ -37,7 +53,7 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 	}
 
 	if user.APIKey != apiKey {
-		err = user.UpdateAPIKey(bot.db, apiKey)
+		err := user.UpdateAPIKey(bot.db, apiKey)
 		if err != nil {
 			_ = ctxt.InternalError(err)
 			return true
@@ -49,12 +65,14 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) cmdLast(ctxt CommandContext) bool {
-	user, err := getSC2RUserOrError(bot.db, ctxt)
-	if err != nil {
+	// Our middleware will replace the base context with a custom one
+	sc2rCtxt, ok := ctxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
 		return true
 	}
 
-	api := sc2r.API{APIKey: user.APIKey}
+	api := sc2r.API{APIKey: sc2rCtxt.sc2ruser.APIKey}
 	replay, err := api.LastReplay()
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("An error has happened while contacting the SC2Replaystats API: %v", err))
@@ -71,8 +89,10 @@ func (bot *Bot) cmdLast(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
-	user, err := getSC2RUserOrError(bot.db, ctxt)
-	if err != nil {
+	// Our middleware will replace the base context with a custom one
+	sc2rCtxt, ok := ctxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
 		return true
 	}
 
@@ -82,7 +102,7 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 		return true
 	}
 
-	api := sc2r.API{APIKey: user.APIKey}
+	api := sc2r.API{APIKey: sc2rCtxt.sc2ruser.APIKey}
 
 	replay, err := api.Replay(replayId)
 	if err != nil {
@@ -100,6 +120,14 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) cmdTrack(ctxt CommandContext) bool {
+	// Our middleware will replace the base context with a custom one
+	sc2rCtxt, ok := ctxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+
+	log.Print(sc2rCtxt)
 	return true
 }
 
@@ -109,9 +137,12 @@ func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (erro
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
 	}
 
-	log.Printf("Got user: %+v", user)
+	sc2rCtxt := &SC2RCommandContext{
+		sc2ruser: &user,
+	}
+	sc2rCtxt.initFromCommandContext(ctxt)
 
-	return err, ctxt
+	return err, sc2rCtxt
 }
 
 func getSC2RUserOrError(db *pgxpool.Pool, ctxt CommandContext) (persistence.SC2ReplayStatsUser, error) {

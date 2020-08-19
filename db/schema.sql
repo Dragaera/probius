@@ -51,6 +51,7 @@ CREATE TABLE sc2replaystats_users (
 	created_at      TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+/*
 CREATE TABLE trackings (
 	id                     SERIAL    PRIMARY KEY,
 	discord_channel_id     INTEGER          NOT NULL REFERENCES discord_channels(id)     ON DELETE CASCADE,
@@ -58,3 +59,4 @@ CREATE TABLE trackings (
 	created_at             TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE (discord_channel_id, sc2replaystats_user_id)
 )
+*/

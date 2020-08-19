@@ -7,6 +7,7 @@ import (
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jinzhu/gorm"
 	"log"
 	"strconv"
 	"strings"
@@ -128,23 +129,31 @@ func (bot *Bot) cmdTrack(baseCtxt CommandContext) bool {
 		return true
 	}
 
-	_, err := persistence.GetTracking(bot.db, ctxt.Channel(), ctxt.SC2RUser())
+	channelID := ctxt.Channel().ID
+	userID := ctxt.SC2RUser().ID
 
+	err := bot.orm.First(
+		&persistence.Tracking{},
+		"discord_channel_id = ? AND sc2_replay_stats_user_id = ?",
+		channelID,
+		userID,
+	).Error
 	if err == nil {
 		ctxt.Respond("Already posting your replays to this channel")
 		return true
-	} else if err != pgx.ErrNoRows {
+	} else if err != gorm.ErrRecordNotFound {
 		ctxt.InternalError(err)
 		return true
 	}
 
-	err = persistence.CreateTracking(
-		bot.db,
-		ctxt.Channel(),
-		ctxt.SC2RUser(),
-	)
+	err = bot.orm.Create(
+		&persistence.Tracking{
+			DiscordChannelID:     channelID,
+			SC2ReplayStatsUserID: userID,
+		},
+	).Error
 	if err != nil {
-		_ = ctxt.InternalError(err)
+		ctxt.InternalError(err)
 		return true
 	}
 

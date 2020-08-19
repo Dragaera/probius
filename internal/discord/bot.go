@@ -6,6 +6,7 @@ import (
 	"github.com/dragaera/probius/internal/config"
 	"github.com/dragaera/probius/internal/persistence"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jinzhu/gorm"
 	"log"
 	"os"
 	"os/signal"
@@ -18,15 +19,20 @@ type Bot struct {
 	Session   *discordgo.Session
 	cmdRouter *CommandRouter
 	db        *pgxpool.Pool
+	orm       *gorm.DB
 }
 
-func (bot *Bot) Run(db *pgxpool.Pool) error {
+func (bot *Bot) Run(db *pgxpool.Pool, orm *gorm.DB) error {
 	if bot.Session == nil {
 		return fmt.Errorf("Bot not initiated, be sure to use discord.Create(...)")
 	}
 
 	bot.db = db
 	defer bot.db.Close()
+
+	bot.orm = orm
+	orm.AutoMigrate(&persistence.Tracking{})
+	defer bot.orm.Close()
 
 	err := bot.Session.Open()
 	if err != nil {

@@ -48,6 +48,18 @@ func (cfg *DBConfig) DBURL() string {
 	)
 }
 
+func (cfg *DBConfig) DBURL2() string {
+	// TODO: Allow configuring SSL mode
+	return fmt.Sprintf(
+		"host=%v port=%v user=%v dbname=%v password=%v sslmode=disable",
+		cfg.Host,
+		cfg.Port,
+		cfg.User,
+		cfg.Database,
+		cfg.Password,
+	)
+}
+
 func ConfigFromEnv() Config {
 	log.Print("Loading configuration from environment")
 

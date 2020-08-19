@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"time"
+	"github.com/jinzhu/gorm"
 )
 
 type Tracking struct {
-	ID                   int
-	DiscordChannelID     int
-	SC2ReplayStatsUserID int
-	CreatedAt            time.Time
+	gorm.Model
+	DiscordChannelID     int `gorm:"not null"`
+	SC2ReplayStatsUserID int `gorm:"not null"`
 }
 
 func CreateTracking(db *pgxpool.Pool, channel *DiscordChannel, user *SC2ReplayStatsUser) error {
@@ -49,7 +48,7 @@ func GetTracking(db *pgxpool.Pool, channel *DiscordChannel, user *SC2ReplayStats
 	return t, nil
 }
 
-func DeleteTracking(db *pgxpool.Pool, id int) error {
+func DeleteTracking(db *pgxpool.Pool, id uint) error {
 	_, err := db.Exec(
 		context.Background(),
 		"DELETE FROM trackings WHERE id = $1",

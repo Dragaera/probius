@@ -9,6 +9,7 @@ require (
 	github.com/gocraft/work v0.5.1
 	github.com/gomodule/redigo v1.8.2
 	github.com/jackc/pgx/v4 v4.8.1
+	github.com/jinzhu/gorm v1.9.16
 	github.com/joho/godotenv v1.3.0
 	github.com/robfig/cron v1.2.0 // indirect
 )

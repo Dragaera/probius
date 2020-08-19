@@ -5,6 +5,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/persistence"
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"log"
 	"strconv"
@@ -119,15 +120,68 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) cmdTrack(ctxt CommandContext) bool {
+func (bot *Bot) cmdTrack(baseCtxt CommandContext) bool {
 	// Our middleware will replace the base context with a custom one
-	sc2rCtxt, ok := ctxt.(*SC2RCommandContext)
+	ctxt, ok := baseCtxt.(*SC2RCommandContext)
 	if !ok {
 		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
 		return true
 	}
 
-	log.Print(sc2rCtxt)
+	_, err := persistence.GetTracking(bot.db, ctxt.Channel(), ctxt.SC2RUser())
+
+	if err == nil {
+		ctxt.Respond("Already posting your replays to this channel")
+		return true
+	} else if err != pgx.ErrNoRows {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	err = persistence.CreateTracking(
+		bot.db,
+		ctxt.Channel(),
+		ctxt.SC2RUser(),
+	)
+	if err != nil {
+		_ = ctxt.InternalError(err)
+		return true
+	}
+
+	ctxt.Respond(fmt.Sprintf(
+		"Now posting your replays to channel %v",
+		ctxt.Channel().DiscordID,
+	))
+	return true
+}
+
+func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
+	// Our middleware will replace the base context with a custom one
+	ctxt, ok := baseCtxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+
+	tracking, err := persistence.GetTracking(bot.db, ctxt.Channel(), ctxt.SC2RUser())
+	if err == pgx.ErrNoRows {
+		ctxt.Respond("I was not posting your replays to this channel.")
+		return true
+	} else if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	err = persistence.DeleteTracking(
+		bot.db,
+		tracking.ID,
+	)
+	if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	ctxt.Respond("Not posting your replays to this channel anymore.")
 	return true
 }
 

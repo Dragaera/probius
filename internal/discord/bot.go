@@ -144,12 +144,24 @@ func (bot *Bot) registerCommands() {
 	bot.cmdRouter.register(
 		Command{
 			Command:     "track",
-			Description: "Automatically posts new replays in channel",
+			Description: "Automatically post new replays in channel",
 			Usage:       "track",
 			MinArgs:     0,
 			MaxArgs:     0,
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdTrack,
+		},
+	)
+
+	bot.cmdRouter.register(
+		Command{
+			Command:     "untrack",
+			Description: "Stop posting new replays in channel",
+			Usage:       "untrack",
+			MinArgs:     0,
+			MaxArgs:     0,
+			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
+			F:           bot.cmdUntrack,
 		},
 	)
 }

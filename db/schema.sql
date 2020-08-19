@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS trackings;
+
 DROP TABLE IF EXISTS sc2replaystats_users;
 
 DROP TABLE IF EXISTS discord_users;
@@ -45,6 +47,14 @@ CREATE TABLE sc2replaystats_users (
 	discord_user_id INT          UNIQUE NOT NULL REFERENCES discord_users(id) ON DELETE CASCADE,
 	api_key         VARCHAR(128)        NOT NULL,
 	last_replay_id  INT                 NOT NULL DEFAULT 0,
+	last_checked    TIMESTAMP,
 	created_at      TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE trackings (
+	id                     SERIAL    PRIMARY KEY,
+	discord_channel_id     INTEGER          NOT NULL REFERENCES discord_channels(id)     ON DELETE CASCADE,
+	sc2replaystats_user_id INTEGER          NOT NULL REFERENCES sc2replaystats_users(id) ON DELETE CASCADE,
+	created_at             TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE (discord_channel_id, sc2replaystats_user_id)
+)

@@ -71,15 +71,15 @@ func (bot *Bot) cmdLast(ctxt CommandContext) bool {
 		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
 		return true
 	}
+	user := sc2rCtxt.sc2ruser
 
-	api := sc2r.API{APIKey: sc2rCtxt.sc2ruser.APIKey}
-	replay, err := api.LastReplay()
+	replay, err := user.FetchLastReplay()
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("An error has happened while contacting the SC2Replaystats API: %v", err))
 		return true
 	}
 
-	embed := buildReplayEmbed(api, replay)
+	embed := buildReplayEmbed(user.API(), replay)
 	ctxt.RespondEmbed(&embed)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("Unable to embed replay: %v", err))
@@ -95,6 +95,7 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
 		return true
 	}
+	user := sc2rCtxt.sc2ruser
 
 	replayId, err := strconv.Atoi(ctxt.Args()[0])
 	if err != nil {
@@ -102,8 +103,7 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 		return true
 	}
 
-	api := sc2r.API{APIKey: sc2rCtxt.sc2ruser.APIKey}
-
+	api := user.API()
 	replay, err := api.Replay(replayId)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("An error has happened while contacting the SC2Replaystats API: %v", err))
@@ -132,7 +132,7 @@ func (bot *Bot) cmdTrack(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (error, CommandContext) {
-	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.User())
+	user, err := persistence.GetSC2ReplayStatsUserByDiscordUser(bot.db, ctxt.User())
 	if err != nil {
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
 	}
@@ -146,7 +146,7 @@ func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (erro
 }
 
 func getSC2RUserOrError(db *pgxpool.Pool, ctxt CommandContext) (persistence.SC2ReplayStatsUser, error) {
-	user, err := persistence.GetSC2ReplayStatsUser(db, ctxt.User())
+	user, err := persistence.GetSC2ReplayStatsUserByDiscordUser(db, ctxt.User())
 	if err != nil {
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
 	}

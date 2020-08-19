@@ -1,9 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/dragaera/probius/internal/config"
 	"github.com/dragaera/probius/internal/persistence"
-	"github.com/dragaera/probius/internal/workers"
+	"github.com/gocraft/work"
 	"github.com/joho/godotenv"
 	"log"
 )
@@ -24,28 +25,13 @@ func main() {
 		cfg.Redis.Port,
 	)
 
-	db, err := persistence.InitializeDB(cfg.DB.DBURL())
-	if err != nil {
-		log.Fatal("Error while initializing persistence layer: ", err)
+	var enqueuer = work.NewEnqueuer(cfg.Worker.Namespace, redis)
+	for i := 0; i < 1; i++ {
+		_, err = enqueuer.Enqueue("check_last_replay", work.Q{"id": i + 1})
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	pool, err := workers.Create(
-		&workers.Pool{
-			Config: &cfg,
-			Redis:  redis,
-			DB:     db,
-		},
-	)
-	if err != nil {
-		log.Fatal("Error while creating worker pool: ", err)
-	}
-
-	log.Print("Starting worker pool.")
-
-	err = pool.Run()
-	if err != nil {
-		log.Fatal("Error while starting worker pool: ", err)
-	}
-
-	log.Print("Worker pool shut down.")
+	fmt.Println("Job enqueued")
 }

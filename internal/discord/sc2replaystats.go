@@ -46,16 +46,24 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 		return true
 	}
 
-	user, err := persistence.GetOrCreateSC2ReplayStatsUser(bot.db, ctxt.User(), apiKey)
+	user := persistence.SC2ReplayStatsUser{}
+	err := bot.orm.FirstOrCreate(
+		&user,
+		persistence.SC2ReplayStatsUser{
+			DiscordUserID: ctxt.User().ID,
+			APIKey:        apiKey,
+		},
+	).Error
 	if err != nil {
-		_ = ctxt.InternalError(err)
+		ctxt.InternalError(err)
 		return true
 	}
 
 	if user.APIKey != apiKey {
-		err := user.UpdateAPIKey(bot.db, apiKey)
+		log.Printf("API key changed: Old = %v, New = %v", user.APIKey, apiKey)
+		err = bot.orm.Model(&user).Update("api_key", apiKey).Error
 		if err != nil {
-			_ = ctxt.InternalError(err)
+			ctxt.InternalError(err)
 			return true
 		}
 	}
@@ -199,7 +207,12 @@ func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
 }
 
 func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (error, CommandContext) {
-	user, err := persistence.GetSC2ReplayStatsUserByDiscordUser(bot.db, ctxt.User())
+	user := persistence.SC2ReplayStatsUser{}
+	err := bot.orm.First(
+		&user,
+		"discord_user_id = ?",
+		ctxt.User().ID,
+	).Error
 	if err != nil {
 		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
 	}

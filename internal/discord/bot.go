@@ -6,7 +6,7 @@ import (
 	"github.com/dragaera/probius/internal/config"
 	"github.com/dragaera/probius/internal/persistence"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"log"
 	"os"
 	"os/signal"
@@ -32,7 +32,8 @@ func (bot *Bot) Run(db *pgxpool.Pool, orm *gorm.DB) error {
 
 	bot.orm = orm
 	orm.AutoMigrate(&persistence.Tracking{})
-	defer bot.orm.Close()
+	// TODO: Do we need to close it? Docs don't mention it anymore from v2 on onwards
+	// defer bot.orm.Close()
 
 	err := bot.Session.Open()
 	if err != nil {

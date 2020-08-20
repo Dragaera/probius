@@ -5,9 +5,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/persistence"
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"log"
 	"strconv"
 	"strings"
@@ -172,8 +170,17 @@ func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
 		return true
 	}
 
-	tracking, err := persistence.GetTracking(bot.db, ctxt.Channel(), ctxt.SC2RUser())
-	if err == pgx.ErrNoRows {
+	channelID := ctxt.Channel().ID
+	userID := ctxt.SC2RUser().ID
+
+	tracking := persistence.Tracking{}
+	err := bot.orm.First(
+		&tracking,
+		"discord_channel_id = ? AND sc2_replay_stats_user_id = ?",
+		channelID,
+		userID,
+	).Error
+	if err == gorm.ErrRecordNotFound {
 		ctxt.Respond("I was not posting your replays to this channel.")
 		return true
 	} else if err != nil {
@@ -181,10 +188,7 @@ func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
 		return true
 	}
 
-	err = persistence.DeleteTracking(
-		bot.db,
-		tracking.ID,
-	)
+	err = bot.orm.Delete(&tracking).Error
 	if err != nil {
 		ctxt.InternalError(err)
 		return true
@@ -206,15 +210,6 @@ func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (erro
 	sc2rCtxt.initFromCommandContext(ctxt)
 
 	return err, sc2rCtxt
-}
-
-func getSC2RUserOrError(db *pgxpool.Pool, ctxt CommandContext) (persistence.SC2ReplayStatsUser, error) {
-	user, err := persistence.GetSC2ReplayStatsUserByDiscordUser(db, ctxt.User())
-	if err != nil {
-		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
-	}
-
-	return user, err
 }
 
 func buildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {

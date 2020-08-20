@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/jinzhu/gorm"
+	"time"
 )
 
 type Tracking struct {
-	gorm.Model
+	ID                   uint `gorm:"primary_key"`
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 	DiscordChannelID     int `gorm:"not null"`
 	SC2ReplayStatsUserID int `gorm:"not null"`
 }

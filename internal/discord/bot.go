@@ -31,6 +31,7 @@ func (bot *Bot) Run(db *pgxpool.Pool, orm *gorm.DB) error {
 	defer bot.db.Close()
 
 	bot.orm = orm
+	// TODO: Put this in DB initializer? Though we don't want multiple instances running, so maybe a separate entrypoint?
 	orm.AutoMigrate(
 		&persistence.Tracking{},
 		&persistence.SC2ReplayStatsUser{},
@@ -217,6 +218,25 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) (error, CommandContext) {
+	ctxt, err := bot.enrichUser(ctxt)
+	if err != nil {
+		return ctxt.InternalError(err), ctxt
+	}
+
+	ctxt, err = bot.enrichGuild(ctxt)
+	if err != nil {
+		return ctxt.InternalError(err), ctxt
+	}
+
+	ctxt, err = bot.enrichChannel(ctxt)
+	if err != nil {
+		return ctxt.InternalError(err), ctxt
+	}
+
+	return nil, ctxt
+}
+
+func (bot *Bot) enrichUser(ctxt CommandContext) (CommandContext, error) {
 	user := persistence.DiscordUser{}
 	author := ctxt.Msg().Author
 
@@ -231,26 +251,33 @@ func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) (error, CommandC
 		},
 	).FirstOrCreate(&user).Error
 	if err != nil {
-		return fmt.Errorf("Unable to enrich context with user: %v", err), ctxt
+		return ctxt, fmt.Errorf("Unable to enrich context with user: %v", err)
 	}
 	// TODO: Change user details if they change
 
 	ctxt.SetUser(&user)
 
-	var guild persistence.DiscordGuild
+	return ctxt, nil
+}
+
+func (bot *Bot) enrichGuild(ctxt CommandContext) (CommandContext, error) {
 	if len(ctxt.Msg().GuildID) == 0 {
 		// Message sent in a DM. For DMs we have a fake guild with ID 0.
-		guild, err = persistence.GetDMGuild(bot.orm)
+		guild, err := persistence.GetDMGuild(bot.orm)
 		if err != nil {
-			return ctxt.InternalError(err), ctxt
+			return ctxt, err
 		}
+		ctxt.SetGuild(&guild)
+		return ctxt, nil
+
 	} else {
 		dgoGuild, err := bot.Session.Guild(ctxt.Msg().GuildID)
 		if err != nil {
-			return ctxt.InternalError(fmt.Errorf("Unable to query guild details from API: %v", err)), ctxt
+			return ctxt, fmt.Errorf("Unable to query guild details from API: %v", err)
 		}
 
 		guild := persistence.DiscordGuild{}
+		log.Printf("Guild details before GetOrCreate: %+v", guild)
 		// TODO Update guild details if they changed
 		err = bot.orm.Where(
 			persistence.DiscordGuild{
@@ -263,14 +290,19 @@ func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) (error, CommandC
 			},
 		).FirstOrCreate(&guild).Error
 		if err != nil {
-			return ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err)), ctxt
+			return ctxt, fmt.Errorf("Unable to enrich context with guild: %v", err)
 		}
-	}
-	ctxt.SetGuild(&guild)
+		log.Printf("Guild details after GetOrCreate: %+v", guild)
 
+		ctxt.SetGuild(&guild)
+		return ctxt, nil
+	}
+}
+
+func (bot *Bot) enrichChannel(ctxt CommandContext) (CommandContext, error) {
 	dgoChannel, err := bot.Session.Channel(ctxt.Msg().ChannelID)
 	if err != nil {
-		return ctxt.InternalError(fmt.Errorf("Unable to query channel details from API: %v", err)), ctxt
+		return ctxt, fmt.Errorf("Unable to query channel details from API: %v", err)
 	}
 
 	channel := persistence.DiscordChannel{}
@@ -280,16 +312,16 @@ func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) (error, CommandC
 		},
 	).Attrs(
 		persistence.DiscordChannel{
-			DiscordGuildID: guild.ID,
+			DiscordGuildID: ctxt.Guild().ID,
 			Name:           dgoChannel.Name,
 			IsDM:           dgoChannel.Type == discordgo.ChannelTypeDM,
 		},
 	).FirstOrCreate(&channel).Error
 	// TODO: Update channel if details changed
 	if err != nil {
-		return ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err)), ctxt
+		return ctxt, fmt.Errorf("Unable to enrich context with channel: %v", err)
 	}
 	ctxt.SetChannel(&channel)
 
-	return nil, ctxt
+	return ctxt, nil
 }

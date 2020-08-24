@@ -19,6 +19,7 @@ type Command struct {
 	F           func(ctxt CommandContext) bool
 }
 
+// TODO: error should be last parameter
 type Middleware func(cmd Command, ctxt CommandContext) (error, CommandContext)
 
 type CommandRouter struct {

@@ -3,7 +3,7 @@ package persistence
 import (
 	"fmt"
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -12,8 +12,16 @@ type SC2ReplayStatsUser struct {
 	DiscordUserID uint
 	APIKey        string
 	LastReplayID  int
+	Trackings     []Tracking
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+func (user *SC2ReplayStatsUser) GetTrackings(db *gorm.DB) ([]Tracking, error) {
+	trackings := make([]Tracking, 10)
+	err := db.Model(&user).Association("Trackings").Find(&trackings)
+
+	return trackings, err
 }
 
 func (user *SC2ReplayStatsUser) API() sc2r.API {
@@ -30,8 +38,22 @@ func (user *SC2ReplayStatsUser) FetchLastReplay() (sc2r.Replay, error) {
 	return replay, nil
 }
 
-func (user *SC2ReplayStatsUser) UpdateLastReplay(db *pgxpool.Pool) (sc2r.Replay, bool, error) {
+func (user *SC2ReplayStatsUser) UpdateLastReplay(orm *gorm.DB) (sc2r.Replay, bool, error) {
 	replay, err := user.FetchLastReplay()
-	// TODO
-	return replay, true, err
+
+	if err != nil {
+		return replay, false, err
+	}
+
+	replayChanged := replay.ReplayID != user.LastReplayID
+	if !replayChanged {
+		return replay, replayChanged, err
+	}
+
+	err = orm.Model(&user).Update("last_replay_id", replay.ReplayID).Error
+	if err != nil {
+		return replay, replayChanged, fmt.Errorf("Unable to update last replay: %v", err)
+	}
+
+	return replay, replayChanged, err
 }

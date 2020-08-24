@@ -105,7 +105,9 @@ func (bot *Bot) initializeCommands() error {
 }
 
 func (bot *Bot) registerMiddlewares() {
-	bot.cmdRouter.registerMiddleware(bot.enrichContext)
+	bot.cmdRouter.registerMiddleware(bot.enrichUser)
+	bot.cmdRouter.registerMiddleware(bot.enrichGuild)
+	bot.cmdRouter.registerMiddleware(bot.enrichChannel)
 }
 
 func (bot *Bot) registerCommands() {
@@ -217,26 +219,7 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) enrichContext(cmd Command, ctxt CommandContext) (error, CommandContext) {
-	ctxt, err := bot.enrichUser(ctxt)
-	if err != nil {
-		return ctxt.InternalError(err), ctxt
-	}
-
-	ctxt, err = bot.enrichGuild(ctxt)
-	if err != nil {
-		return ctxt.InternalError(err), ctxt
-	}
-
-	ctxt, err = bot.enrichChannel(ctxt)
-	if err != nil {
-		return ctxt.InternalError(err), ctxt
-	}
-
-	return nil, ctxt
-}
-
-func (bot *Bot) enrichUser(ctxt CommandContext) (CommandContext, error) {
+func (bot *Bot) enrichUser(cmd Command, ctxt CommandContext) (CommandContext, error) {
 	user := persistence.DiscordUser{}
 	author := ctxt.Msg().Author
 
@@ -251,7 +234,7 @@ func (bot *Bot) enrichUser(ctxt CommandContext) (CommandContext, error) {
 		},
 	).FirstOrCreate(&user).Error
 	if err != nil {
-		return ctxt, fmt.Errorf("Unable to enrich context with user: %v", err)
+		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with user: %v", err))
 	}
 	// TODO: Change user details if they change
 
@@ -260,12 +243,12 @@ func (bot *Bot) enrichUser(ctxt CommandContext) (CommandContext, error) {
 	return ctxt, nil
 }
 
-func (bot *Bot) enrichGuild(ctxt CommandContext) (CommandContext, error) {
+func (bot *Bot) enrichGuild(cmd Command, ctxt CommandContext) (CommandContext, error) {
 	if len(ctxt.Msg().GuildID) == 0 {
 		// Message sent in a DM. For DMs we have a fake guild with ID 0.
 		guild, err := persistence.GetDMGuild(bot.orm)
 		if err != nil {
-			return ctxt, err
+			return ctxt, ctxt.InternalError(err)
 		}
 		ctxt.SetGuild(&guild)
 		return ctxt, nil
@@ -273,7 +256,7 @@ func (bot *Bot) enrichGuild(ctxt CommandContext) (CommandContext, error) {
 	} else {
 		dgoGuild, err := bot.Session.Guild(ctxt.Msg().GuildID)
 		if err != nil {
-			return ctxt, fmt.Errorf("Unable to query guild details from API: %v", err)
+			return ctxt, ctxt.InternalError(fmt.Errorf("Unable to query guild details from API: %v", err))
 		}
 
 		guild := persistence.DiscordGuild{}
@@ -290,7 +273,7 @@ func (bot *Bot) enrichGuild(ctxt CommandContext) (CommandContext, error) {
 			},
 		).FirstOrCreate(&guild).Error
 		if err != nil {
-			return ctxt, fmt.Errorf("Unable to enrich context with guild: %v", err)
+			return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err))
 		}
 		log.Printf("Guild details after GetOrCreate: %+v", guild)
 
@@ -299,10 +282,10 @@ func (bot *Bot) enrichGuild(ctxt CommandContext) (CommandContext, error) {
 	}
 }
 
-func (bot *Bot) enrichChannel(ctxt CommandContext) (CommandContext, error) {
+func (bot *Bot) enrichChannel(cmd Command, ctxt CommandContext) (CommandContext, error) {
 	dgoChannel, err := bot.Session.Channel(ctxt.Msg().ChannelID)
 	if err != nil {
-		return ctxt, fmt.Errorf("Unable to query channel details from API: %v", err)
+		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to query channel details from API: %v", err))
 	}
 
 	channel := persistence.DiscordChannel{}
@@ -319,7 +302,7 @@ func (bot *Bot) enrichChannel(ctxt CommandContext) (CommandContext, error) {
 	).FirstOrCreate(&channel).Error
 	// TODO: Update channel if details changed
 	if err != nil {
-		return ctxt, fmt.Errorf("Unable to enrich context with channel: %v", err)
+		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err))
 	}
 	ctxt.SetChannel(&channel)
 

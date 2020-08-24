@@ -206,7 +206,7 @@ func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (error, CommandContext) {
+func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (CommandContext, error) {
 	user := persistence.SC2ReplayStatsUser{}
 	err := bot.orm.First(
 		&user,
@@ -222,7 +222,7 @@ func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (erro
 	}
 	sc2rCtxt.initFromCommandContext(ctxt)
 
-	return err, sc2rCtxt
+	return sc2rCtxt, err
 }
 
 func buildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {

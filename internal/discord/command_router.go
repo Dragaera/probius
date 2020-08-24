@@ -19,8 +19,7 @@ type Command struct {
 	F           func(ctxt CommandContext) bool
 }
 
-// TODO: error should be last parameter
-type Middleware func(cmd Command, ctxt CommandContext) (error, CommandContext)
+type Middleware func(cmd Command, ctxt CommandContext) (CommandContext, error)
 
 type CommandRouter struct {
 	commands    map[string]Command
@@ -83,7 +82,7 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 
 	for _, m := range router.middlewares {
 		// Assigning directly to `ctxt` will lead to a 'declared but not used' error
-		err, newCtxt := m(cmd, ctxt)
+		newCtxt, err := m(cmd, ctxt)
 		ctxt = newCtxt
 		if err != nil {
 			log.Printf("Bot middleware %v failed: %v. Aborting command.\n", m, err)
@@ -93,7 +92,7 @@ func (router *CommandRouter) processCommand(sess *discordgo.Session, msg *discor
 
 	for _, m := range cmd.Middleware {
 		// Assigning directly to `ctxt` will lead to a 'declared but not used' error
-		err, newCtxt := m(cmd, ctxt)
+		newCtxt, err := m(cmd, ctxt)
 		ctxt = newCtxt
 		if err != nil {
 			log.Printf("Command middleware %v failed: %v. Aborting command.\n", m, err)

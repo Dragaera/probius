@@ -24,7 +24,7 @@ func main() {
 		cfg.Redis.Port,
 	)
 
-	db, err := persistence.InitializeDB(cfg.DB.DBURL())
+	orm, err := persistence.InitializeORM(cfg.DB)
 	if err != nil {
 		log.Fatal("Error while initializing persistence layer: ", err)
 	}
@@ -33,7 +33,7 @@ func main() {
 		&workers.Pool{
 			Config: &cfg,
 			Redis:  redis,
-			DB:     db,
+			DB:     orm,
 		},
 	)
 	if err != nil {

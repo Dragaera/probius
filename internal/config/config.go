@@ -25,6 +25,8 @@ type DBConfig struct {
 	Host     string
 	Port     string
 	Database string
+	SSLMode  string
+	LogSQL   bool
 }
 
 type RedisConfig struct {
@@ -51,12 +53,13 @@ func (cfg *DBConfig) DBURL() string {
 func (cfg *DBConfig) DBURL2() string {
 	// TODO: Allow configuring SSL mode
 	return fmt.Sprintf(
-		"host=%v port=%v user=%v dbname=%v password=%v sslmode=disable",
+		"host=%v port=%v user=%v dbname=%v password=%v sslmode=%v",
 		cfg.Host,
 		cfg.Port,
 		cfg.User,
 		cfg.Database,
 		cfg.Password,
+		cfg.SSLMode,
 	)
 }
 
@@ -73,6 +76,8 @@ func ConfigFromEnv() Config {
 	dbCfg.Host = fromEnvWithDefault("DB_HOST", "127.0.0.1")
 	dbCfg.Port = fromEnvWithDefault("DB_PORT", "5432")
 	dbCfg.Database = fromEnvWithDefault("DB_DATABASE", "probius")
+	dbCfg.SSLMode = fromEnvWithDefault("DB_SSL_MODE", "disable")
+	dbCfg.LogSQL = boolFromEnvWithDefault("DB_LOG_SQL", false)
 
 	redisCfg := RedisConfig{}
 	redisCfg.Host = fromEnvWithDefault("REDIS_HOST", "127.0.0.1")
@@ -131,4 +136,26 @@ func intFromEnvWithDefault(key string, fallback int) int {
 	}
 
 	return val
+}
+
+func boolFromEnv(key string) bool {
+	str := fromEnv(key)
+
+	switch str {
+	case "true", "t", "yes", "y":
+		return true
+	case "false", "f", "no", "n":
+		return false
+	default:
+		log.Fatalf("Unable to convert value of %v to bool: %v", key, str)
+		panic("This piece of code is unreachable")
+	}
+}
+
+func boolFromEnvWithDefault(key string, fallback bool) bool {
+	if _, ok := os.LookupEnv(key); !ok {
+		return fallback
+	}
+
+	return boolFromEnv(key)
 }

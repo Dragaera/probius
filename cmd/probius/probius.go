@@ -29,7 +29,7 @@ func main() {
 		log.Fatal("Error while initializing persistence layer: ", err)
 	}
 
-	orm, err := persistence.InitializeORM(cfg.DB.DBURL2())
+	orm, err := persistence.InitializeORM(cfg.DB)
 	if err != nil {
 		log.Fatal("Error while initializing ORM persistence layer: ", err)
 	}

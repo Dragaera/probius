@@ -14,6 +14,9 @@ import (
 	"syscall"
 )
 
+const VERSION string = "0.1.0"
+const GITHUB_URL string = "https://github.com/dragaera/probius"
+
 type Bot struct {
 	Config    config.Config
 	Session   *discordgo.Session
@@ -107,7 +110,7 @@ func (bot *Bot) registerMiddlewares() {
 }
 
 func (bot *Bot) registerCommands() error {
-	err := bot.cmdRouter.register(
+	commands := []Command{
 		Command{
 			Command:     "help",
 			Description: "Show help about commands",
@@ -116,12 +119,23 @@ func (bot *Bot) registerCommands() error {
 			MaxArgs:     1,
 			F:           bot.cmdHelp,
 		},
-	)
-	if err != nil {
-		return err
-	}
+		Command{
+			Command:     "invite",
+			Description: "Generate URL to invite bot to Discord Guild",
+			Usage:       "invite",
+			MinArgs:     0,
+			MaxArgs:     0,
+			F:           bot.cmdInvite,
+		},
+		Command{
+			Command:     "version",
+			Description: "Show bot version",
+			Usage:       "version",
+			MinArgs:     0,
+			MaxArgs:     0,
+			F:           bot.cmdVersion,
+		},
 
-	err = bot.cmdRouter.register(
 		Command{
 			Command:     "auth",
 			Description: "Authorize the bot to access the SC2replaystats.com API on your behalf",
@@ -130,12 +144,7 @@ func (bot *Bot) registerCommands() error {
 			MaxArgs:     1,
 			F:           bot.cmdAuth,
 		},
-	)
-	if err != nil {
-		return err
-	}
 
-	err = bot.cmdRouter.register(
 		Command{
 			Command:     "last",
 			Description: "Embeds the most-recently uploaded replay",
@@ -145,12 +154,6 @@ func (bot *Bot) registerCommands() error {
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdLast,
 		},
-	)
-	if err != nil {
-		return err
-	}
-
-	err = bot.cmdRouter.register(
 		Command{
 			Command:     "replay",
 			Description: "Embeds the replay with the given ID",
@@ -160,12 +163,7 @@ func (bot *Bot) registerCommands() error {
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdReplay,
 		},
-	)
-	if err != nil {
-		return err
-	}
 
-	err = bot.cmdRouter.register(
 		Command{
 			Command:     "subscribe",
 			Aliases:     []string{"sub"},
@@ -176,12 +174,6 @@ func (bot *Bot) registerCommands() error {
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdSubscribe,
 		},
-	)
-	if err != nil {
-		return err
-	}
-
-	err = bot.cmdRouter.register(
 		Command{
 			Command:     "unsubscribe",
 			Aliases:     []string{"unsub"},
@@ -192,12 +184,6 @@ func (bot *Bot) registerCommands() error {
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdUnsubscribe,
 		},
-	)
-	if err != nil {
-		return err
-	}
-
-	err = bot.cmdRouter.register(
 		Command{
 			Command:     "subscriptions",
 			Aliases:     []string{"subs"},
@@ -208,9 +194,13 @@ func (bot *Bot) registerCommands() error {
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdSubscriptions,
 		},
-	)
-	if err != nil {
-		return err
+	}
+
+	for _, cmd := range commands {
+		err := bot.cmdRouter.register(cmd)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -250,6 +240,18 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	}
 
 	ctxt.Sess().ChannelMessageSend(ctxt.Msg().ChannelID, out.String())
+	return true
+}
+
+func (bot *Bot) cmdInvite(ctxt CommandContext) bool {
+	ctxt.Respond(fmt.Sprintf("Invite me: %v", bot.InviteURL()))
+	return true
+}
+
+func (bot *Bot) cmdVersion(ctxt CommandContext) bool {
+	ctxt.Respond(
+		fmt.Sprintf("Probius `v%v`\nFind me on Github: %v", VERSION, GITHUB_URL),
+	)
 	return true
 }
 

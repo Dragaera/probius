@@ -6,7 +6,7 @@ import (
 	"github.com/dragaera/probius/internal/persistence"
 	"github.com/gocraft/work"
 	"github.com/gomodule/redigo/redis"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"gorm.io/gorm"
 	"log"
 	"os"
 	"os/signal"
@@ -17,11 +17,12 @@ type Pool struct {
 	Config *config.Config
 	pool   *work.WorkerPool
 	Redis  *redis.Pool
-	DB     *pgxpool.Pool
+	DB     *gorm.DB
 }
 
 func (pool *Pool) Run() error {
-	defer pool.DB.Close()
+	// TODO does the Gorm DB need closing?
+	// defer pool.DB.Close()
 
 	pool.pool.Start()
 	defer pool.pool.Stop()
@@ -71,7 +72,7 @@ func Create(pool *Pool) (*Pool, error) {
 
 type JobContext struct {
 	id int
-	db *pgxpool.Pool
+	db *gorm.DB
 }
 
 func LogStart(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
@@ -92,7 +93,8 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 		return fmt.Errorf("Missing SC2ReplayStatsuser ID: %v", err)
 	}
 
-	user, err := persistence.GetSC2ReplayStatsUser(ctxt.db, sc2rID)
+	user := persistence.SC2ReplayStatsUser{}
+	err := ctxt.db.First(&user, "id = ?", sc2rID).Error
 	if err != nil {
 		return err
 	}
@@ -103,9 +105,13 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 	}
 
 	if changed {
-		// TODO: Post to channels
-		fmt.Printf("Got new replay: %+v\n", replay)
+		log.Printf("New replay for user %+v found.", user)
+		// TODO
+	} else {
+		log.Printf("No new replay for user %+v found.", user)
 	}
+
+	log.Printf("PLACEHOLDER %v", replay)
 
 	return nil
 }

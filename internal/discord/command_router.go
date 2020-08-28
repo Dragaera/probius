@@ -11,6 +11,7 @@ const commandPrefix string = "!"
 
 type Command struct {
 	Command     string
+	Aliases     []string
 	Description string
 	Usage       string
 	MinArgs     int
@@ -27,11 +28,49 @@ type CommandRouter struct {
 }
 
 func (router *CommandRouter) register(cmd Command) error {
-	if _, ok := router.commands[cmd.Command]; ok {
-		return fmt.Errorf("Command already registered: %v", cmd.Command)
+	if err := router.checkCommandConflict(cmd.Command); err != nil {
+		return fmt.Errorf("Command '%v': %v", cmd.Command, err)
+	}
+	for _, alias := range cmd.Aliases {
+		if err := router.checkCommandConflict(alias); err != nil {
+			return fmt.Errorf("Alias '%v': %v", alias, err)
+		}
 	}
 
 	router.commands[cmd.Command] = cmd
+	for _, alias := range cmd.Aliases {
+		if _, ok := router.commands[alias]; ok {
+			// As conflicts with other commands were checked
+			// before, this has to be a duplicate alias within the
+			// command itself.
+			log.Printf(
+				"Warning: Ignoring duplicate alias '%v' within command: %v",
+				cmd.Command,
+				alias,
+			)
+			continue
+		}
+		router.commands[alias] = cmd
+	}
+
+	return nil
+}
+
+func (router *CommandRouter) checkCommandConflict(cmd string) error {
+	if conflictCmd, ok := router.commands[cmd]; ok {
+		if conflictCmd.Command == cmd {
+			return fmt.Errorf(
+				"Already in use by other command: %v",
+				conflictCmd.Command,
+			)
+		} else {
+			// Conflict must be an alias
+			return fmt.Errorf(
+				"Already in use as alias of other command: %v",
+				conflictCmd.Command,
+			)
+		}
+	}
 
 	return nil
 }

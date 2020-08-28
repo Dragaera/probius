@@ -98,7 +98,11 @@ func (bot *Bot) initializeCommands() error {
 	bot.Session.AddHandler(bot.cmdRouter.onMessageCreate)
 
 	// And hook up commands and middlewares
-	bot.registerCommands()
+	err := bot.registerCommands()
+	if err != nil {
+		return err
+	}
+
 	bot.registerMiddlewares()
 
 	return nil
@@ -110,8 +114,8 @@ func (bot *Bot) registerMiddlewares() {
 	bot.cmdRouter.registerMiddleware(bot.enrichChannel)
 }
 
-func (bot *Bot) registerCommands() {
-	bot.cmdRouter.register(
+func (bot *Bot) registerCommands() error {
+	err := bot.cmdRouter.register(
 		Command{
 			Command:     "help",
 			Description: "Show help about commands",
@@ -121,8 +125,11 @@ func (bot *Bot) registerCommands() {
 			F:           bot.cmdHelp,
 		},
 	)
+	if err != nil {
+		return err
+	}
 
-	bot.cmdRouter.register(
+	err = bot.cmdRouter.register(
 		Command{
 			Command:     "auth",
 			Description: "Authorize the bot to access the SC2replaystats.com API on your behalf",
@@ -132,8 +139,11 @@ func (bot *Bot) registerCommands() {
 			F:           bot.cmdAuth,
 		},
 	)
+	if err != nil {
+		return err
+	}
 
-	bot.cmdRouter.register(
+	err = bot.cmdRouter.register(
 		Command{
 			Command:     "last",
 			Description: "Embeds the most-recently uploaded replay",
@@ -144,8 +154,11 @@ func (bot *Bot) registerCommands() {
 			F:           bot.cmdLast,
 		},
 	)
+	if err != nil {
+		return err
+	}
 
-	bot.cmdRouter.register(
+	err = bot.cmdRouter.register(
 		Command{
 			Command:     "replay",
 			Description: "Embeds the replay with the given ID",
@@ -156,22 +169,30 @@ func (bot *Bot) registerCommands() {
 			F:           bot.cmdReplay,
 		},
 	)
+	if err != nil {
+		return err
+	}
 
-	bot.cmdRouter.register(
+	err = bot.cmdRouter.register(
 		Command{
-			Command:     "track",
+			Command:     "subscribe",
+			Aliases:     []string{"sub"},
 			Description: "Automatically post new replays in channel",
-			Usage:       "track",
+			Usage:       "subscribe",
 			MinArgs:     0,
 			MaxArgs:     0,
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdSubscribe,
 		},
 	)
+	if err != nil {
+		return err
+	}
 
-	bot.cmdRouter.register(
+	err = bot.cmdRouter.register(
 		Command{
-			Command:     "untrack",
+			Command:     "unsubscribe",
+			Aliases:     []string{"unsub"},
 			Description: "Stop posting new replays in channel",
 			Usage:       "untrack",
 			MinArgs:     0,
@@ -180,6 +201,11 @@ func (bot *Bot) registerCommands() {
 			F:           bot.cmdUnsubscribe,
 		},
 	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (bot *Bot) InviteURL() string {
@@ -193,12 +219,12 @@ func (bot *Bot) cmdHelp(ctxt CommandContext) bool {
 	case 0:
 		// Command list
 		out.WriteString("Available commands:\n")
-		for _, cmd := range bot.cmdRouter.commands {
+		for cmdString, cmd := range bot.cmdRouter.commands {
 			fmt.Fprintf(
 				&out,
 				"\t`%v%v`: %v\n",
 				commandPrefix,
-				cmd.Command,
+				cmdString,
 				cmd.Description,
 			)
 		}

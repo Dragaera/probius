@@ -33,7 +33,7 @@ func (bot *Bot) Run(db *pgxpool.Pool, orm *gorm.DB) error {
 	bot.orm = orm
 	// TODO: Put this in DB initializer? Though we don't want multiple instances running, so maybe a separate entrypoint?
 	orm.AutoMigrate(
-		&persistence.Tracking{},
+		&persistence.Subscription{},
 		&persistence.SC2ReplayStatsUser{},
 		&persistence.DiscordUser{},
 		&persistence.DiscordChannel{},
@@ -165,7 +165,7 @@ func (bot *Bot) registerCommands() {
 			MinArgs:     0,
 			MaxArgs:     0,
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
-			F:           bot.cmdTrack,
+			F:           bot.cmdSubscribe,
 		},
 	)
 
@@ -177,7 +177,7 @@ func (bot *Bot) registerCommands() {
 			MinArgs:     0,
 			MaxArgs:     0,
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
-			F:           bot.cmdUntrack,
+			F:           bot.cmdUnsubscribe,
 		},
 	)
 }

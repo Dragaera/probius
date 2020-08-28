@@ -17,11 +17,11 @@ type SC2ReplayStatsUser struct {
 	UpdatedAt     time.Time
 }
 
-func (user *SC2ReplayStatsUser) GetTrackings(db *gorm.DB) ([]Tracking, error) {
-	trackings := make([]Tracking, 10)
-	err := db.Model(&user).Association("Trackings").Find(&trackings)
+func (user *SC2ReplayStatsUser) GetSubscriptions(db *gorm.DB) ([]Subscription, error) {
+	subscriptions := make([]Subscription, 10)
+	err := db.Model(&user).Association("Trackings").Find(&subscriptions)
 
-	return trackings, err
+	return subscriptions, err
 }
 
 func (user *SC2ReplayStatsUser) API() sc2r.API {

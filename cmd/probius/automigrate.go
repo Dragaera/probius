@@ -28,6 +28,6 @@ func main() {
 		&persistence.DiscordChannel{},
 
 		&persistence.SC2ReplayStatsUser{},
-		&persistence.Tracking{},
+		&persistence.Subscription{},
 	)
 }

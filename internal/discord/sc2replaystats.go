@@ -127,7 +127,7 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) cmdTrack(baseCtxt CommandContext) bool {
+func (bot *Bot) cmdSubscribe(baseCtxt CommandContext) bool {
 	// Our middleware will replace the base context with a custom one
 	ctxt, ok := baseCtxt.(*SC2RCommandContext)
 	if !ok {
@@ -139,7 +139,7 @@ func (bot *Bot) cmdTrack(baseCtxt CommandContext) bool {
 	userID := ctxt.SC2RUser().ID
 
 	err := bot.orm.First(
-		&persistence.Tracking{},
+		&persistence.Subscription{},
 		"discord_channel_id = ? AND sc2_replay_stats_user_id = ?",
 		channelID,
 		userID,
@@ -153,7 +153,7 @@ func (bot *Bot) cmdTrack(baseCtxt CommandContext) bool {
 	}
 
 	err = bot.orm.Create(
-		&persistence.Tracking{
+		&persistence.Subscription{
 			DiscordChannelID:     channelID,
 			SC2ReplayStatsUserID: userID,
 		},
@@ -170,7 +170,7 @@ func (bot *Bot) cmdTrack(baseCtxt CommandContext) bool {
 	return true
 }
 
-func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
+func (bot *Bot) cmdUnsubscribe(baseCtxt CommandContext) bool {
 	// Our middleware will replace the base context with a custom one
 	ctxt, ok := baseCtxt.(*SC2RCommandContext)
 	if !ok {
@@ -181,9 +181,9 @@ func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
 	channelID := ctxt.Channel().ID
 	userID := ctxt.SC2RUser().ID
 
-	tracking := persistence.Tracking{}
+	subscription := persistence.Subscription{}
 	err := bot.orm.First(
-		&tracking,
+		&subscription,
 		"discord_channel_id = ? AND sc2_replay_stats_user_id = ?",
 		channelID,
 		userID,
@@ -196,7 +196,7 @@ func (bot *Bot) cmdUntrack(baseCtxt CommandContext) bool {
 		return true
 	}
 
-	err = bot.orm.Delete(&tracking).Error
+	err = bot.orm.Delete(&subscription).Error
 	if err != nil {
 		ctxt.InternalError(err)
 		return true

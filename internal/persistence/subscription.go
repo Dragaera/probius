@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type Tracking struct {
+type Subscription struct {
 	ID                   uint               `gorm:"primaryKey"`
 	DiscordChannelID     uint               `gorm:"not null"`
 	DiscordChannel       DiscordChannel     `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
@@ -15,12 +15,12 @@ type Tracking struct {
 	UpdatedAt            time.Time
 }
 
-func (tracking *Tracking) GetSC2ReplayStatsUser(db *gorm.DB) (SC2ReplayStatsUser, error) {
+func (subscription *Subscription) GetSC2ReplayStatsUser(db *gorm.DB) (SC2ReplayStatsUser, error) {
 	user := SC2ReplayStatsUser{}
 	err := db.First(
 		&user,
 		"id = ?",
-		tracking.SC2ReplayStatsUserID,
+		subscription.SC2ReplayStatsUserID,
 	).Error
 
 	return user, err

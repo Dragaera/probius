@@ -19,7 +19,14 @@ type SC2ReplayStatsUser struct {
 
 func (user *SC2ReplayStatsUser) GetSubscriptions(db *gorm.DB) ([]Subscription, error) {
 	subscriptions := make([]Subscription, 10)
-	err := db.Model(&user).Association("Trackings").Find(&subscriptions)
+	err := db.
+		Where(Subscription{SC2ReplayStatsUserID: user.ID}).
+		Preload("DiscordChannel.DiscordGuild").
+		Find(&subscriptions).
+		Error
+	if err != nil {
+		err = fmt.Errorf("Unable to retrieve subscriptions for user %v: %v", user.ID, err)
+	}
 
 	return subscriptions, err
 }

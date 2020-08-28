@@ -205,6 +205,22 @@ func (bot *Bot) registerCommands() error {
 		return err
 	}
 
+	err = bot.cmdRouter.register(
+		Command{
+			Command:     "subscriptions",
+			Aliases:     []string{"subs"},
+			Description: "List replay subscriptions",
+			Usage:       "subscriptions",
+			MinArgs:     0,
+			MaxArgs:     0,
+			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
+			F:           bot.cmdSubscriptions,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

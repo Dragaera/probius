@@ -145,7 +145,7 @@ func (bot *Bot) cmdSubscribe(baseCtxt CommandContext) bool {
 		userID,
 	).Error
 	if err == nil {
-		ctxt.Respond("Already posting your replays to this channel")
+		ctxt.Respond("Error: replay feed subscription for this channel exists already.")
 		return true
 	} else if err != gorm.ErrRecordNotFound {
 		ctxt.InternalError(err)
@@ -163,10 +163,7 @@ func (bot *Bot) cmdSubscribe(baseCtxt CommandContext) bool {
 		return true
 	}
 
-	ctxt.Respond(fmt.Sprintf(
-		"Now posting your replays to channel %v",
-		ctxt.Channel().DiscordID,
-	))
+	ctxt.Respond("Success: Added replay feed subscription to this channel.")
 	return true
 }
 
@@ -189,7 +186,7 @@ func (bot *Bot) cmdUnsubscribe(baseCtxt CommandContext) bool {
 		userID,
 	).Error
 	if err == gorm.ErrRecordNotFound {
-		ctxt.Respond("I was not posting your replays to this channel.")
+		ctxt.Respond("Error: No replay feed subscription exists for this channel.")
 		return true
 	} else if err != nil {
 		ctxt.InternalError(err)
@@ -202,7 +199,36 @@ func (bot *Bot) cmdUnsubscribe(baseCtxt CommandContext) bool {
 		return true
 	}
 
-	ctxt.Respond("Not posting your replays to this channel anymore.")
+	ctxt.Respond("Success: Replay feed subscription removed.")
+	return true
+}
+
+func (bot *Bot) cmdSubscriptions(baseCtxt CommandContext) bool {
+	// Our middleware will replace the base context with a custom one
+	ctxt, ok := baseCtxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+
+	subscriptions, err := ctxt.SC2RUser().GetSubscriptions(bot.orm)
+	if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	out := strings.Builder{}
+	out.WriteString("Your subscriptions:\n")
+	for _, sub := range subscriptions {
+		fmt.Fprintf(
+			&out,
+			"\t- %v/%v\n",
+			sub.DiscordChannel.DiscordGuild.Name,
+			sub.DiscordChannel.Name,
+		)
+	}
+
+	ctxt.Respond(out.String())
 	return true
 }
 

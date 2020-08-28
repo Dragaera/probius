@@ -5,7 +5,7 @@ import (
 )
 
 type DiscordChannel struct {
-	ID             uint         `gorm:"primary_key"`
+	ID             uint         `gorm:"primaryKey"`
 	DiscordGuildID uint         `gorm:"not null"`
 	DiscordGuild   DiscordGuild `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	DiscordID      string

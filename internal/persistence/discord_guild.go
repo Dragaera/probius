@@ -7,13 +7,12 @@ import (
 )
 
 type DiscordGuild struct {
-	ID              uint `gorm:"primary_key"`
-	DiscordID       string
-	Name            string
-	OwnerID         string
-	DiscordChannels []DiscordChannel
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID        uint `gorm:"primaryKey"`
+	DiscordID string
+	Name      string
+	OwnerID   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func GetDMGuild(orm *gorm.DB) (DiscordGuild, error) {

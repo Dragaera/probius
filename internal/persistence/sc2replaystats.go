@@ -8,11 +8,11 @@ import (
 )
 
 type SC2ReplayStatsUser struct {
-	ID            uint `gorm:"primary_key"`
-	DiscordUserID uint
+	ID            uint        `gorm:"primaryKey"`
+	DiscordUserID uint        `gorm:"not null"`
+	DiscordUser   DiscordUser `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	APIKey        string
 	LastReplayID  int
-	Trackings     []Tracking
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

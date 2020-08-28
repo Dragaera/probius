@@ -5,7 +5,7 @@ import (
 )
 
 type DiscordUser struct {
-	ID            uint `gorm:"primary_key"`
+	ID            uint `gorm:"primaryKey"`
 	DiscordID     string
 	Name          string
 	Discriminator string

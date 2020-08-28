@@ -6,10 +6,11 @@ import (
 )
 
 type Tracking struct {
-	ID                   uint `gorm:"primary_key"`
-	DiscordChannelID     uint `gorm:"not null"`
-	SC2ReplayStatsUserID uint `gorm:"not null"`
-	SC2ReplayStatsUser   SC2ReplayStatsUser
+	ID                   uint               `gorm:"primaryKey"`
+	DiscordChannelID     uint               `gorm:"not null"`
+	DiscordChannel       DiscordChannel     `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	SC2ReplayStatsUserID uint               `gorm:"not null"`
+	SC2ReplayStatsUser   SC2ReplayStatsUser `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }

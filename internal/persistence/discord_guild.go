@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"fmt"
+	"github.com/bwmarrin/discordgo"
 	"gorm.io/gorm"
 	"time"
 )
@@ -28,4 +29,28 @@ func GetDMGuild(orm *gorm.DB) (DiscordGuild, error) {
 	}
 
 	return guild, nil
+}
+
+func (guild *DiscordGuild) UpdateFromDgo(dgoGuild *discordgo.Guild, orm *gorm.DB) error {
+	changed := false
+	newUser := DiscordGuild{}
+
+	if guild.Name != dgoGuild.Name {
+		newUser.Name = dgoGuild.Name
+		changed = true
+	}
+
+	if guild.OwnerID != dgoGuild.OwnerID {
+		newUser.OwnerID = dgoGuild.OwnerID
+		changed = true
+	}
+
+	// .Updates with null-struct still caused an update of the `updated_at` field.
+	if changed {
+		return orm.
+			Model(&guild).
+			Updates(newUser).
+			Error
+	}
+	return nil
 }

@@ -31,14 +31,6 @@ func (bot *Bot) Run(db *pgxpool.Pool, orm *gorm.DB) error {
 	defer bot.db.Close()
 
 	bot.orm = orm
-	// TODO: Put this in DB initializer? Though we don't want multiple instances running, so maybe a separate entrypoint?
-	orm.AutoMigrate(
-		&persistence.Subscription{},
-		&persistence.SC2ReplayStatsUser{},
-		&persistence.DiscordUser{},
-		&persistence.DiscordChannel{},
-		&persistence.DiscordGuild{},
-	)
 	// TODO: Do we need to close it? Docs don't mention it anymore from v2 on onwards
 	// defer bot.orm.Close()
 
@@ -278,7 +270,10 @@ func (bot *Bot) enrichUser(cmd Command, ctxt CommandContext) (CommandContext, er
 	if err != nil {
 		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with user: %v", err))
 	}
-	// TODO: Change user details if they change
+
+	if err = user.UpdateFromDgo(ctxt.Msg().Author, bot.orm); err != nil {
+		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with user: %v", err))
+	}
 
 	ctxt.SetUser(&user)
 
@@ -302,8 +297,6 @@ func (bot *Bot) enrichGuild(cmd Command, ctxt CommandContext) (CommandContext, e
 		}
 
 		guild := persistence.DiscordGuild{}
-		log.Printf("Guild details before GetOrCreate: %+v", guild)
-		// TODO Update guild details if they changed
 		err = bot.orm.Where(
 			persistence.DiscordGuild{
 				DiscordID: dgoGuild.ID,
@@ -317,7 +310,10 @@ func (bot *Bot) enrichGuild(cmd Command, ctxt CommandContext) (CommandContext, e
 		if err != nil {
 			return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err))
 		}
-		log.Printf("Guild details after GetOrCreate: %+v", guild)
+
+		if err = guild.UpdateFromDgo(dgoGuild, bot.orm); err != nil {
+			return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with guild: %v", err))
+		}
 
 		ctxt.SetGuild(&guild)
 		return ctxt, nil
@@ -342,10 +338,14 @@ func (bot *Bot) enrichChannel(cmd Command, ctxt CommandContext) (CommandContext,
 			IsDM:           dgoChannel.Type == discordgo.ChannelTypeDM,
 		},
 	).FirstOrCreate(&channel).Error
-	// TODO: Update channel if details changed
 	if err != nil {
 		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err))
 	}
+
+	if err = channel.UpdateFromDgo(dgoChannel, bot.orm); err != nil {
+		return ctxt, ctxt.InternalError(fmt.Errorf("Unable to enrich context with channel: %v", err))
+	}
+
 	ctxt.SetChannel(&channel)
 
 	return ctxt, nil

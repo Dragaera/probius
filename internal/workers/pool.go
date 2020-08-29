@@ -6,22 +6,27 @@ import (
 	"github.com/dragaera/probius/internal/config"
 	"github.com/dragaera/probius/internal/discord"
 	"github.com/dragaera/probius/internal/persistence"
+	"github.com/dragaera/probius/internal/sc2replaystats"
 	"github.com/gocraft/work"
 	"github.com/gomodule/redigo/redis"
+	"github.com/throttled/throttled/v2"
+	"github.com/throttled/throttled/v2/store/redigostore"
 	"gorm.io/gorm"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
 type Pool struct {
-	Config   *config.Config
-	Session  *discordgo.Session
-	pool     *work.WorkerPool
-	enqueuer *work.Enqueuer
-	Redis    *redis.Pool
-	DB       *gorm.DB
+	Config      *config.Config
+	Session     *discordgo.Session
+	pool        *work.WorkerPool
+	enqueuer    *work.Enqueuer
+	rateLimiter *throttled.GCRARateLimiter
+	Redis       *redis.Pool
+	DB          *gorm.DB
 }
 
 func (pool *Pool) Run() error {
@@ -65,6 +70,25 @@ func Create(pool *Pool) (*Pool, error) {
 	}
 	pool.Session = dg
 
+	store, err := redigostore.New(
+		pool.Redis,
+		"", // Prefix
+		0,  // DB
+	)
+	if err != nil {
+		return pool, fmt.Errorf("Error creating rate limiting Redis store: ", err)
+	}
+
+	quota := throttled.RateQuota{
+		MaxRate:  throttled.PerSec(pool.Config.SC2ReplayStats.RateLimitAverage),
+		MaxBurst: pool.Config.SC2ReplayStats.RateLimitBurst,
+	}
+	rateLimiter, err := throttled.NewGCRARateLimiter(store, quota)
+	if err != nil {
+		return pool, fmt.Errorf("Error creating rate limiter: ", err)
+	}
+	pool.rateLimiter = rateLimiter
+
 	workerPool := work.NewWorkerPool(
 		JobContext{},
 		uint(pool.Config.Worker.Concurrency), // Number of worker processes per pool process
@@ -93,11 +117,12 @@ func Create(pool *Pool) (*Pool, error) {
 }
 
 type JobContext struct {
-	id       int
-	db       *gorm.DB
-	config   *config.Config
-	enqueuer *work.Enqueuer
-	session  *discordgo.Session
+	id          int
+	db          *gorm.DB
+	config      *config.Config
+	enqueuer    *work.Enqueuer
+	rateLimiter *throttled.GCRARateLimiter
+	session     *discordgo.Session
 }
 
 func LogStart(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
@@ -110,6 +135,7 @@ func (pool *Pool) EnrichContext(ctxt *JobContext, job *work.Job, next work.NextM
 	ctxt.db = pool.DB
 	ctxt.config = pool.Config
 	ctxt.enqueuer = pool.enqueuer
+	ctxt.rateLimiter = pool.rateLimiter
 	ctxt.session = pool.Session
 
 	return next()
@@ -121,8 +147,26 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 		return fmt.Errorf("Missing SC2ReplayStatsuser ID: %v", err)
 	}
 
+	limited, _, err := ctxt.rateLimiter.RateLimit("check_last_replay", 1)
+	if err != nil {
+		return fmt.Errorf("Unable to query rate limiter: %v", err)
+	}
+
+	if limited {
+		// Backoff in [5, 59) seconds
+		backoff := rand.Int63n(55) + 5
+		log.Printf("Warning: Hit rate limit for check_last_replay. Rescheduling in: %vs", backoff)
+		// Rate limited, reschedule for later time
+		ctxt.enqueuer.EnqueueIn(
+			"check_last_replay",
+			backoff,
+			work.Q{"id": sc2rID},
+		)
+		return nil
+	}
+
 	user := persistence.SC2ReplayStatsUser{}
-	err := ctxt.db.First(&user, "id = ?", sc2rID).Error
+	err = ctxt.db.First(&user, "id = ?", sc2rID).Error
 	if err != nil {
 		return err
 	}
@@ -134,27 +178,8 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 
 	if changed {
 		log.Printf("New replay for user %v found.", user.ID)
-		subscriptions, err := user.GetSubscriptions(ctxt.db)
-		if err != nil {
-			log.Print("Error retrieving user's subscriptions: ", err)
+		if err := notifySubscriptions(ctxt.db, ctxt.session, user, replay); err != nil {
 			return err
-		}
-
-		for _, sub := range subscriptions {
-			embed := discord.BuildReplayEmbed(
-				user.API(),
-				replay,
-			)
-
-			err = sendEmbed(
-				ctxt.session,
-				sub.DiscordChannel.DiscordID,
-				&embed,
-			)
-			if err != nil {
-				log.Print("Error sending replay embed: ", err)
-				return err
-			}
 		}
 	} else {
 		log.Printf("No new replay for user %v found.", user.ID)
@@ -189,6 +214,32 @@ func ClearStaleLocks(ctxt *JobContext, job *work.Job) error {
 		ctxt.db,
 		ctxt.config.SC2ReplayStats.LockTTL,
 	)
+}
+
+func notifySubscriptions(db *gorm.DB, session *discordgo.Session, user persistence.SC2ReplayStatsUser, replay sc2replaystats.Replay) error {
+	subscriptions, err := user.GetSubscriptions(db)
+	if err != nil {
+		log.Print("Error retrieving user's subscriptions: ", err)
+		return err
+	}
+
+	for _, sub := range subscriptions {
+		embed := discord.BuildReplayEmbed(
+			user.API(),
+			replay,
+		)
+
+		err = sendEmbed(
+			session,
+			sub.DiscordChannel.DiscordID,
+			&embed,
+		)
+		if err != nil {
+			log.Print("Error sending replay embed: ", err)
+			return err
+		}
+	}
+	return nil
 }
 
 func sendEmbed(sess *discordgo.Session, channelID string, embed *discordgo.MessageEmbed) error {

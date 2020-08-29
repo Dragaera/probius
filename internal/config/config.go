@@ -41,8 +41,13 @@ type WorkerConfig struct {
 }
 
 type SC2ReplayStatsConfig struct {
+	// In seconds
 	UpdateInterval int
-	LockTTL        int
+	// In seconds
+	LockTTL int
+	// In requests per second (not burst, but average rate)
+	RateLimitAverage int
+	RateLimitBurst   int
 }
 
 func (cfg *DBConfig) DBURL() string {
@@ -84,6 +89,8 @@ func ConfigFromEnv() Config {
 	sc2rCfg := SC2ReplayStatsConfig{}
 	sc2rCfg.UpdateInterval = intFromEnvWithDefault("SC2_REPLAY_STATS_UPDATE_INTERVAL", 5*60)
 	sc2rCfg.LockTTL = intFromEnvWithDefault("SC2_REPLAY_STATS_LOCK_TTL", 15*60)
+	sc2rCfg.RateLimitAverage = intFromEnvWithDefault("SC2_REPLAY_STATS_RATE_LIMIT_AVERAGE", 1)
+	sc2rCfg.RateLimitBurst = intFromEnvWithDefault("SC2_REPLAY_STATS_RATE_LIMIT_BURST", 2)
 
 	cfg := Config{
 		DB:             dbCfg,

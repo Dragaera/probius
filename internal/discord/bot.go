@@ -13,8 +13,8 @@ import (
 	"syscall"
 )
 
-const VERSION string = "0.1.0"
-const GITHUB_URL string = "https://github.com/dragaera/probius"
+const version string = "0.1.0"
+const githubURL string = "https://github.com/dragaera/probius"
 
 type Bot struct {
 	Config    config.Config
@@ -242,7 +242,7 @@ func (bot *Bot) cmdInvite(ctxt CommandContext) bool {
 
 func (bot *Bot) cmdVersion(ctxt CommandContext) bool {
 	ctxt.Respond(
-		fmt.Sprintf("Probius `v%v`\nFind me on Github: %v", VERSION, GITHUB_URL),
+		fmt.Sprintf("Probius `v%v`\nFind me on Github: %v", version, githubURL),
 	)
 	return true
 }

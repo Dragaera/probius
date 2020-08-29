@@ -16,11 +16,12 @@ import (
 )
 
 type Pool struct {
-	Config  *config.Config
-	Session *discordgo.Session
-	pool    *work.WorkerPool
-	Redis   *redis.Pool
-	DB      *gorm.DB
+	Config   *config.Config
+	Session  *discordgo.Session
+	pool     *work.WorkerPool
+	enqueuer *work.Enqueuer
+	Redis    *redis.Pool
+	DB       *gorm.DB
 }
 
 func (pool *Pool) Run() error {
@@ -72,18 +73,29 @@ func Create(pool *Pool) (*Pool, error) {
 	)
 	pool.pool = workerPool
 
+	pool.enqueuer = work.NewEnqueuer(pool.Config.Worker.Namespace, pool.Redis)
+
 	workerPool.Middleware(LogStart)
 	workerPool.Middleware(pool.EnrichContext)
 
+	// Job handlers
 	workerPool.Job("check_last_replay", CheckLastReplay)
+	workerPool.Job("check_stale_players", CheckStalePlayers)
+
+	// Periodic jobs
+	// seconds hours minutes day-of-month month week-of-day
+	// (as per https://github.com/gocraft/work/)
+	workerPool.PeriodicallyEnqueue("0 * * * * *", "check_stale_players")
 
 	return pool, nil
 }
 
 type JobContext struct {
-	id      int
-	db      *gorm.DB
-	session *discordgo.Session
+	id       int
+	db       *gorm.DB
+	config   *config.Config
+	enqueuer *work.Enqueuer
+	session  *discordgo.Session
 }
 
 func LogStart(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
@@ -94,6 +106,8 @@ func LogStart(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) err
 
 func (pool *Pool) EnrichContext(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
 	ctxt.db = pool.DB
+	ctxt.config = pool.Config
+	ctxt.enqueuer = pool.enqueuer
 	ctxt.session = pool.Session
 
 	return next()
@@ -117,7 +131,7 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 	}
 
 	if changed {
-		log.Printf("New replay for user %+v found.", user)
+		log.Printf("New replay for user %v found.", user.ID)
 		subscriptions, err := user.GetSubscriptions(ctxt.db)
 		if err != nil {
 			log.Print("Error retrieving user's subscriptions: ", err)
@@ -141,7 +155,28 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 			}
 		}
 	} else {
-		log.Printf("No new replay for user %+v found.", user)
+		log.Printf("No new replay for user %v found.", user.ID)
+	}
+
+	return nil
+}
+
+func CheckStalePlayers(ctxt *JobContext, job *work.Job) error {
+	users, err := persistence.SC2ReplayStatsUsersWithStaleData(
+		ctxt.db,
+		ctxt.config.SC2ReplayStats.UpdateInterval,
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		err = user.LockForUpdate(ctxt.db)
+		if err != nil {
+			log.Printf("Error marking player for update: ", err)
+			return err
+		}
+		ctxt.enqueuer.Enqueue("check_last_replay", work.Q{"id": user.ID})
 	}
 
 	return nil

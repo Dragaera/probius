@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	DB      DBConfig
-	Discord DiscordConfig
-	Redis   RedisConfig
-	Worker  WorkerConfig
+	DB             DBConfig
+	Discord        DiscordConfig
+	Redis          RedisConfig
+	Worker         WorkerConfig
+	SC2ReplayStats SC2ReplayStatsConfig
 }
 
 type DiscordConfig struct {
@@ -37,6 +38,10 @@ type RedisConfig struct {
 type WorkerConfig struct {
 	Concurrency int
 	Namespace   string
+}
+
+type SC2ReplayStatsConfig struct {
+	UpdateInterval int
 }
 
 func (cfg *DBConfig) DBURL() string {
@@ -75,11 +80,15 @@ func ConfigFromEnv() Config {
 	workerCfg.Concurrency = intFromEnvWithDefault("WORKER_CONCURRENCY", 5)
 	workerCfg.Namespace = fromEnvWithDefault("WORKER_NAMESPACE", "probius")
 
+	sc2rCfg := SC2ReplayStatsConfig{}
+	sc2rCfg.UpdateInterval = intFromEnvWithDefault("SC2_REPLAY_STATS_UPDATE_INTERVAL", 5*60)
+
 	cfg := Config{
-		DB:      dbCfg,
-		Discord: discordCfg,
-		Redis:   redisCfg,
-		Worker:  workerCfg,
+		DB:             dbCfg,
+		Discord:        discordCfg,
+		Redis:          redisCfg,
+		Worker:         workerCfg,
+		SC2ReplayStats: sc2rCfg,
 	}
 
 	return cfg

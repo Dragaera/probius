@@ -8,13 +8,15 @@ import (
 )
 
 type SC2ReplayStatsUser struct {
-	ID            uint        `gorm:"primaryKey"`
-	DiscordUserID uint        `gorm:"not null"`
-	DiscordUser   DiscordUser `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	APIKey        string
-	LastReplayID  int
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                uint        `gorm:"primaryKey"`
+	DiscordUserID     uint        `gorm:"not null"`
+	DiscordUser       DiscordUser `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	APIKey            string
+	LastReplayID      int
+	LastCheckedAt     time.Time
+	UpdateScheduledAt time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (user *SC2ReplayStatsUser) GetSubscriptions(db *gorm.DB) ([]Subscription, error) {
@@ -46,6 +48,9 @@ func (user *SC2ReplayStatsUser) FetchLastReplay() (sc2r.Replay, error) {
 }
 
 func (user *SC2ReplayStatsUser) UpdateLastReplay(orm *gorm.DB) (sc2r.Replay, bool, error) {
+	defer user.TouchLastCheckedAt(orm)
+	defer user.UnlockForUpdate(orm)
+
 	replay, err := user.FetchLastReplay()
 
 	if err != nil {
@@ -63,4 +68,41 @@ func (user *SC2ReplayStatsUser) UpdateLastReplay(orm *gorm.DB) (sc2r.Replay, boo
 	}
 
 	return replay, replayChanged, err
+}
+
+func (user *SC2ReplayStatsUser) LockForUpdate(orm *gorm.DB) error {
+	return orm.
+		Model(&user).
+		Update("update_scheduled_at", time.Now()).
+		Error
+}
+
+func (user *SC2ReplayStatsUser) UnlockForUpdate(orm *gorm.DB) error {
+	return orm.
+		Model(&user).
+		Update("update_scheduled_at", nil).
+		Error
+}
+
+func (user *SC2ReplayStatsUser) TouchLastCheckedAt(orm *gorm.DB) error {
+	return orm.
+		Model(&user).
+		Update("last_checked_at", time.Now()).
+		Error
+}
+
+func SC2ReplayStatsUsersWithStaleData(orm *gorm.DB, updateInterval int) ([]SC2ReplayStatsUser, error) {
+	// Timestamp where players which haven't been updated since then are considered stale
+	ts := time.Now().Add(time.Second * time.Duration(-updateInterval))
+
+	users := make([]SC2ReplayStatsUser, 10)
+	err := orm.
+		Where("(update_scheduled_at is NULL AND last_checked_at <= ?) OR last_checked_at is NULL", ts).
+		Find(&users).
+		Error
+	if err != nil {
+		err = fmt.Errorf("Unable to retrieve players with stale data: %v", err)
+	}
+
+	return users, err
 }

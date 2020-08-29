@@ -2,7 +2,6 @@
 !.env.*.dist
 
 # Compiled binaries for each of the files in `cmd/`
-/automigrate
-/enqueuer
-/probius
-/workers
+/cmd/automigrate/automigrate
+/cmd/workers/workers
+/cmd/probius/probius

@@ -5,21 +5,37 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/persistence"
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
+	"gorm.io/gorm"
 	"log"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
-	apiKey := ctxt.Args[0]
+type SC2RCommandContext struct {
+	BaseCommandContext
+	sc2ruser *persistence.SC2ReplayStatsUser
+}
 
-	isDM, err := ctxt.IsDM()
-	if err != nil {
-		ctxt.InternalError(err)
-		return true
-	}
-	if !isDM {
+func (ctxt *SC2RCommandContext) SC2RUser() *persistence.SC2ReplayStatsUser {
+	return ctxt.sc2ruser
+}
+
+func (sc2rCtxt *SC2RCommandContext) initFromCommandContext(ctxt CommandContext) {
+	sc2rCtxt.SetSess(ctxt.Sess())
+	sc2rCtxt.SetMsg(ctxt.Msg())
+	sc2rCtxt.SetArgs(ctxt.Args())
+	sc2rCtxt.SetGuild(ctxt.Guild())
+	sc2rCtxt.SetChannel(ctxt.Channel())
+	sc2rCtxt.SetUser(ctxt.User())
+}
+
+func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
+	// NB: This command does not use the SC2R enrichment middleware, as it
+	// also has to work for users without a linked SC2R account.
+	apiKey := ctxt.Args()[0]
+
+	if !ctxt.Channel().IsDM {
 		ctxt.Respond("**Only use this command via DM**.\nIf you used this command in a public channel, you might have just exposed your API key. If so, please reset it on the profile page and try again via direct message.")
 		return true
 	}
@@ -30,40 +46,48 @@ func (bot *Bot) cmdAuth(ctxt CommandContext) bool {
 		return true
 	}
 
-	discordId := ctxt.Msg.Author.ID
-	user, err := persistence.GetOrCreateSC2ReplayStatsUser(bot.db, discordId, apiKey)
+	user := persistence.SC2ReplayStatsUser{}
+	err := bot.orm.FirstOrCreate(
+		&user,
+		persistence.SC2ReplayStatsUser{
+			DiscordUserID: ctxt.User().ID,
+			APIKey:        apiKey,
+		},
+	).Error
 	if err != nil {
 		ctxt.InternalError(err)
 		return true
 	}
 
 	if user.APIKey != apiKey {
-		err = user.UpdateAPIKey(bot.db, apiKey)
+		log.Printf("API key changed: Old = %v, New = %v", user.APIKey, apiKey)
+		err = bot.orm.Model(&user).Update("api_key", apiKey).Error
 		if err != nil {
 			ctxt.InternalError(err)
 			return true
 		}
 	}
 
-	ctxt.Respond(fmt.Sprintf("Successfully set API key of Discord user %v to %v", discordId, apiKey))
+	ctxt.Respond(fmt.Sprintf("Successfully set API key of Discord user %v to %v", ctxt.User().DiscordID, apiKey))
 	return true
 }
 
 func (bot *Bot) cmdLast(ctxt CommandContext) bool {
-	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.Msg.Author.ID)
-	if err != nil {
-		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
+	// Our middleware will replace the base context with a custom one
+	sc2rCtxt, ok := ctxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
 		return true
 	}
+	user := sc2rCtxt.sc2ruser
 
-	api := sc2r.API{APIKey: user.APIKey}
-	replay, err := api.LastReplay()
+	replay, err := user.FetchLastReplay()
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("An error has happened while contacting the SC2Replaystats API: %v", err))
 		return true
 	}
 
-	embed := buildReplayEmbed(api, replay)
+	embed := BuildReplayEmbed(user.API(), replay)
 	ctxt.RespondEmbed(&embed)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("Unable to embed replay: %v", err))
@@ -73,27 +97,28 @@ func (bot *Bot) cmdLast(ctxt CommandContext) bool {
 }
 
 func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
-	user, err := persistence.GetSC2ReplayStatsUser(bot.db, ctxt.Msg.Author.ID)
+	// Our middleware will replace the base context with a custom one
+	sc2rCtxt, ok := ctxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+	user := sc2rCtxt.sc2ruser
+
+	replayId, err := strconv.Atoi(ctxt.Args()[0])
 	if err != nil {
-		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
+		ctxt.Respond(fmt.Sprintf("Invalid ID: %v. Must be numeric", ctxt.Args()[0]))
 		return true
 	}
 
-	replayId, err := strconv.Atoi(ctxt.Args[0])
-	if err != nil {
-		ctxt.Respond(fmt.Sprintf("Invalid ID: %v. Must be numeric", ctxt.Args[0]))
-		return true
-	}
-
-	api := sc2r.API{APIKey: user.APIKey}
-
+	api := user.API()
 	replay, err := api.Replay(replayId)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("An error has happened while contacting the SC2Replaystats API: %v", err))
 		return true
 	}
 
-	embed := buildReplayEmbed(api, replay)
+	embed := BuildReplayEmbed(api, replay)
 	err = ctxt.RespondEmbed(&embed)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("Unable to embed replay: %v", err))
@@ -102,7 +127,131 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 	return true
 }
 
-func buildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {
+func (bot *Bot) cmdSubscribe(baseCtxt CommandContext) bool {
+	// Our middleware will replace the base context with a custom one
+	ctxt, ok := baseCtxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+
+	channelID := ctxt.Channel().ID
+	userID := ctxt.SC2RUser().ID
+
+	err := bot.orm.First(
+		&persistence.Subscription{},
+		"discord_channel_id = ? AND sc2_replay_stats_user_id = ?",
+		channelID,
+		userID,
+	).Error
+	if err == nil {
+		ctxt.Respond("Error: replay feed subscription for this channel exists already.")
+		return true
+	} else if err != gorm.ErrRecordNotFound {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	err = bot.orm.Create(
+		&persistence.Subscription{
+			DiscordChannelID:     channelID,
+			SC2ReplayStatsUserID: userID,
+		},
+	).Error
+	if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	ctxt.Respond("Success: Added replay feed subscription to this channel.")
+	return true
+}
+
+func (bot *Bot) cmdUnsubscribe(baseCtxt CommandContext) bool {
+	// Our middleware will replace the base context with a custom one
+	ctxt, ok := baseCtxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+
+	channelID := ctxt.Channel().ID
+	userID := ctxt.SC2RUser().ID
+
+	subscription := persistence.Subscription{}
+	err := bot.orm.First(
+		&subscription,
+		"discord_channel_id = ? AND sc2_replay_stats_user_id = ?",
+		channelID,
+		userID,
+	).Error
+	if err == gorm.ErrRecordNotFound {
+		ctxt.Respond("Error: No replay feed subscription exists for this channel.")
+		return true
+	} else if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	err = bot.orm.Delete(&subscription).Error
+	if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	ctxt.Respond("Success: Replay feed subscription removed.")
+	return true
+}
+
+func (bot *Bot) cmdSubscriptions(baseCtxt CommandContext) bool {
+	// Our middleware will replace the base context with a custom one
+	ctxt, ok := baseCtxt.(*SC2RCommandContext)
+	if !ok {
+		ctxt.InternalError(fmt.Errorf("Middleware introduced incorrect context type.\nIncoming context had type: %T", ctxt))
+		return true
+	}
+
+	subscriptions, err := ctxt.SC2RUser().GetSubscriptions(bot.orm)
+	if err != nil {
+		ctxt.InternalError(err)
+		return true
+	}
+
+	out := strings.Builder{}
+	out.WriteString("Your subscriptions:\n")
+	for _, sub := range subscriptions {
+		fmt.Fprintf(
+			&out,
+			"\t- %v/%v\n",
+			sub.DiscordChannel.DiscordGuild.Name,
+			sub.DiscordChannel.Name,
+		)
+	}
+
+	ctxt.Respond(out.String())
+	return true
+}
+
+func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (CommandContext, error) {
+	user := persistence.SC2ReplayStatsUser{}
+	err := bot.orm.First(
+		&user,
+		"discord_user_id = ?",
+		ctxt.User().ID,
+	).Error
+	if err != nil {
+		ctxt.Respond("You have not yet granted the bot access to the SC2Replaystats API. Please do so - **in a DM** - with the `!auth` command.")
+	}
+
+	sc2rCtxt := &SC2RCommandContext{
+		sc2ruser: &user,
+	}
+	sc2rCtxt.initFromCommandContext(ctxt)
+
+	return sc2rCtxt, err
+}
+
+func BuildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {
 	mapField := discordgo.MessageEmbedField{
 		Name:   "Map",
 		Value:  replay.MapName,

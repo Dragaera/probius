@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 )
 
 type Config struct {
-	DB      DBConfig
-	Discord DiscordConfig
+	DB             DBConfig
+	Discord        DiscordConfig
+	Redis          RedisConfig
+	Worker         WorkerConfig
+	SC2ReplayStats SC2ReplayStatsConfig
 }
 
 type DiscordConfig struct {
@@ -22,16 +26,39 @@ type DBConfig struct {
 	Host     string
 	Port     string
 	Database string
+	SSLMode  string
+	LogSQL   bool
+}
+
+type RedisConfig struct {
+	Host string
+	Port string
+}
+
+type WorkerConfig struct {
+	Concurrency int
+	Namespace   string
+}
+
+type SC2ReplayStatsConfig struct {
+	// In seconds
+	UpdateInterval int
+	// In seconds
+	LockTTL int
+	// In requests per second (not burst, but average rate)
+	RateLimitAverage int
+	RateLimitBurst   int
 }
 
 func (cfg *DBConfig) DBURL() string {
 	return fmt.Sprintf(
-		"postgres://%v:%v@%v:%v/%v",
-		cfg.User,
-		cfg.Password,
+		"host=%v port=%v user=%v dbname=%v password=%v sslmode=%v",
 		cfg.Host,
 		cfg.Port,
+		cfg.User,
 		cfg.Database,
+		cfg.Password,
+		cfg.SSLMode,
 	)
 }
 
@@ -48,10 +75,29 @@ func ConfigFromEnv() Config {
 	dbCfg.Host = fromEnvWithDefault("DB_HOST", "127.0.0.1")
 	dbCfg.Port = fromEnvWithDefault("DB_PORT", "5432")
 	dbCfg.Database = fromEnvWithDefault("DB_DATABASE", "probius")
+	dbCfg.SSLMode = fromEnvWithDefault("DB_SSL_MODE", "disable")
+	dbCfg.LogSQL = boolFromEnvWithDefault("DB_LOG_SQL", false)
+
+	redisCfg := RedisConfig{}
+	redisCfg.Host = fromEnvWithDefault("REDIS_HOST", "127.0.0.1")
+	redisCfg.Port = fromEnvWithDefault("REDIS_PORT", "6379")
+
+	workerCfg := WorkerConfig{}
+	workerCfg.Concurrency = intFromEnvWithDefault("WORKER_CONCURRENCY", 5)
+	workerCfg.Namespace = fromEnvWithDefault("WORKER_NAMESPACE", "probius")
+
+	sc2rCfg := SC2ReplayStatsConfig{}
+	sc2rCfg.UpdateInterval = intFromEnvWithDefault("SC2_REPLAY_STATS_UPDATE_INTERVAL", 5*60)
+	sc2rCfg.LockTTL = intFromEnvWithDefault("SC2_REPLAY_STATS_LOCK_TTL", 15*60)
+	sc2rCfg.RateLimitAverage = intFromEnvWithDefault("SC2_REPLAY_STATS_RATE_LIMIT_AVERAGE", 1)
+	sc2rCfg.RateLimitBurst = intFromEnvWithDefault("SC2_REPLAY_STATS_RATE_LIMIT_BURST", 2)
 
 	cfg := Config{
-		DB:      dbCfg,
-		Discord: discordCfg,
+		DB:             dbCfg,
+		Discord:        discordCfg,
+		Redis:          redisCfg,
+		Worker:         workerCfg,
+		SC2ReplayStats: sc2rCfg,
 	}
 
 	return cfg
@@ -74,4 +120,48 @@ func fromEnvWithDefault(key string, fallback string) string {
 	}
 
 	return val
+}
+
+func intFromEnv(key string) int {
+	str := fromEnv(key)
+
+	val, err := strconv.Atoi(str)
+	if err != nil {
+		log.Fatalf("Unable to convert value of %v to int: %v", key, err)
+	}
+
+	return val
+}
+
+func intFromEnvWithDefault(key string, fallback int) int {
+	str := fromEnvWithDefault(key, strconv.FormatInt(int64(fallback), 10))
+
+	val, err := strconv.Atoi(str)
+	if err != nil {
+		log.Fatalf("Unable to convert value of %v to int: %v", key, err)
+	}
+
+	return val
+}
+
+func boolFromEnv(key string) bool {
+	str := fromEnv(key)
+
+	switch str {
+	case "true", "t", "yes", "y":
+		return true
+	case "false", "f", "no", "n":
+		return false
+	default:
+		log.Fatalf("Unable to convert value of %v to bool: %v", key, str)
+		panic("This piece of code is unreachable")
+	}
+}
+
+func boolFromEnvWithDefault(key string, fallback bool) bool {
+	if _, ok := os.LookupEnv(key); !ok {
+		return fallback
+	}
+
+	return boolFromEnv(key)
 }

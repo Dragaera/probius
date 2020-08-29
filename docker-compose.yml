@@ -2,7 +2,6 @@ version: '3'
 
 networks:
   probius-dev:
-  gorge-test:
 
 volumes:
   database-data:
@@ -17,3 +16,10 @@ services:
       - 15432:5432
     volumes:
       - database-data:/var/lib/postgresql/data
+  redis:
+    image: 'redis:6'
+    env_file: .env.development
+    networks:
+      - probius-dev
+    ports:
+      - 16379:6379

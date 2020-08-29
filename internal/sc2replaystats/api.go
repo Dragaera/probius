@@ -16,7 +16,7 @@ const userAgent string = "Probius; https://github.com/dragaera/probius"
 
 type Replay struct {
 	ReplayURL     string         `json:"replay_url"`
-	ReplayId      int            `json:"replay_id"`
+	ReplayID      int            `json:"replay_id"`
 	MapName       string         `json:"map_name"`
 	Format        string         `json:"format"`
 	GameType      GameType       `json:"game_type"`

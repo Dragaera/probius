@@ -1,89 +1,124 @@
 package persistence
 
 import (
-	"context"
 	"fmt"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
+	"gorm.io/gorm"
+	"log"
 	"time"
 )
 
 type SC2ReplayStatsUser struct {
-	ID            int
-	DiscordUserID int
-	APIKey        string
-	LastReplayID  int
-	CreatedAt     time.Time
+	ID                uint        `gorm:"primaryKey"`
+	DiscordUserID     uint        `gorm:"not null"`
+	DiscordUser       DiscordUser `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	APIKey            string
+	LastReplayID      int
+	LastCheckedAt     time.Time
+	UpdateScheduledAt time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
-func GetSC2ReplayStatsUser(db *pgxpool.Pool, discordId string) (SC2ReplayStatsUser, error) {
-	u := SC2ReplayStatsUser{}
-
-	du, err := GetOrCreateDiscordUser(db, discordId)
+func (user *SC2ReplayStatsUser) GetSubscriptions(db *gorm.DB) ([]Subscription, error) {
+	subscriptions := make([]Subscription, 10)
+	err := db.
+		Where(Subscription{SC2ReplayStatsUserID: user.ID}).
+		Preload("DiscordChannel.DiscordGuild").
+		Find(&subscriptions).
+		Error
 	if err != nil {
-		return u, fmt.Errorf("Unable to get SC2Replaystats user: %v", err)
+		err = fmt.Errorf("Unable to retrieve subscriptions for user %v: %v", user.ID, err)
 	}
 
-	err = db.QueryRow(
-		context.Background(),
-		"SELECT id, discord_user_id, api_key, last_replay_id, created_at FROM sc2replaystats_users WHERE discord_user_id=$1",
-		du.ID,
-	).Scan(&u.ID, &u.DiscordUserID, &u.APIKey, &u.LastReplayID, &u.CreatedAt)
-
-	if err == pgx.ErrNoRows {
-		// We preserve this one, so GetOrCreate can check for it
-		return u, err
-	} else if err != nil {
-		return u, fmt.Errorf("Unable to get SC2ReplayStats user: %v", err)
-	}
-
-	return u, nil
+	return subscriptions, err
 }
 
-func GetOrCreateSC2ReplayStatsUser(db *pgxpool.Pool, discordId string, apiKey string) (SC2ReplayStatsUser, error) {
-	u, err := GetSC2ReplayStatsUser(db, discordId)
-
-	if err == pgx.ErrNoRows {
-		err = CreateSC2ReplayStatsUser(db, discordId, apiKey)
-	}
-
-	// Either the getting failed (with an error other than ErrNoRows), or creation failed
-	if err != nil {
-		return u, fmt.Errorf("Unable to get/create SC2ReplayStats user: %v", err)
-	}
-
-	return GetSC2ReplayStatsUser(db, discordId)
+func (user *SC2ReplayStatsUser) API() sc2r.API {
+	return sc2r.API{APIKey: user.APIKey}
 }
 
-func CreateSC2ReplayStatsUser(db *pgxpool.Pool, discordId string, apiKey string) error {
-	du, err := GetOrCreateDiscordUser(db, discordId)
+func (user *SC2ReplayStatsUser) FetchLastReplay() (sc2r.Replay, error) {
+	api := user.API()
+	replay, err := api.LastReplay()
 	if err != nil {
-		return fmt.Errorf("Unable to create SC2Replaystats user: %v", err)
+		return replay, fmt.Errorf("Unable to retrieve last replay: %v", err)
 	}
 
-	_, err = db.Exec(
-		context.Background(),
-		"INSERT INTO sc2replaystats_users (discord_user_id, api_key) VALUES ($1, $2)",
-		du.ID,
-		apiKey,
-	)
-
-	if err != nil {
-		return fmt.Errorf("Unable to create SC2Replaystats user: %v", err)
-	}
-	return nil
+	return replay, nil
 }
 
-func (user *SC2ReplayStatsUser) UpdateAPIKey(db *pgxpool.Pool, apiKey string) error {
-	_, err := db.Exec(
-		context.Background(),
-		"UPDATE sc2replaystats_users SET api_key = $1 WHERE id = $2",
-		apiKey,
-		user.ID,
-	)
+func (user *SC2ReplayStatsUser) UpdateLastReplay(orm *gorm.DB) (sc2r.Replay, bool, error) {
+	defer user.TouchLastCheckedAt(orm)
+	defer user.UnlockForUpdate(orm)
+
+	replay, err := user.FetchLastReplay()
 
 	if err != nil {
-		return fmt.Errorf("Unable to update API key: %v", err)
+		return replay, false, err
 	}
-	return nil
+
+	replayChanged := replay.ReplayID != user.LastReplayID
+	if !replayChanged {
+		return replay, replayChanged, err
+	}
+
+	err = orm.Model(&user).Update("last_replay_id", replay.ReplayID).Error
+	if err != nil {
+		return replay, replayChanged, fmt.Errorf("Unable to update last replay: %v", err)
+	}
+
+	return replay, replayChanged, err
+}
+
+func (user *SC2ReplayStatsUser) LockForUpdate(orm *gorm.DB) error {
+	return orm.
+		Model(&user).
+		Update("update_scheduled_at", time.Now()).
+		Error
+}
+
+func (user *SC2ReplayStatsUser) UnlockForUpdate(orm *gorm.DB) error {
+	return orm.
+		Model(&user).
+		Update("update_scheduled_at", nil).
+		Error
+}
+
+func (user *SC2ReplayStatsUser) TouchLastCheckedAt(orm *gorm.DB) error {
+	return orm.
+		Model(&user).
+		Update("last_checked_at", time.Now()).
+		Error
+}
+
+func SC2ReplayStatsUsersWithStaleData(orm *gorm.DB, updateInterval int) ([]SC2ReplayStatsUser, error) {
+	// Timestamp where players which haven't been updated since then are considered stale
+	ts := time.Now().Add(time.Second * time.Duration(-updateInterval))
+
+	users := make([]SC2ReplayStatsUser, 10)
+	err := orm.
+		Where("(update_scheduled_at is NULL AND last_checked_at <= ?) OR last_checked_at is NULL", ts).
+		Find(&users).
+		Error
+	if err != nil {
+		err = fmt.Errorf("Unable to retrieve players with stale data: %v", err)
+	}
+
+	return users, err
+}
+
+func ClearStaleSC2ReplayStatsUpdateLocks(orm *gorm.DB, ttl int) error {
+	ts := time.Now().Add(time.Second * time.Duration(-ttl))
+	err := orm.
+		Model(&SC2ReplayStatsUser{}).
+		Where("update_scheduled_at <= ?", ts).
+		Update("update_scheduled_at", nil).
+		Error
+	if err != nil {
+		err = fmt.Errorf("Unable to clear stale locks: %v", err)
+		log.Print(">>>>>", err)
+	}
+
+	return err
 }

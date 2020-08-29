@@ -1,0 +1,14 @@
+# Vim
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# Docker
+.dockerignore
+
+# Dev-only files
+.env*
+!.env.dist
+docker-compose.yml

@@ -34,6 +34,7 @@ func (bot *Bot) Run(orm *gorm.DB) error {
 	if err != nil {
 		return fmt.Errorf("Error connecting to Discord:", err)
 	}
+	defer bot.Session.Close()
 
 	log.Print("Bot is running.")
 	log.Printf("Invite me: %v", bot.InviteURL())
@@ -42,8 +43,6 @@ func (bot *Bot) Run(orm *gorm.DB) error {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
-
-	bot.Session.Close()
 
 	return nil
 }

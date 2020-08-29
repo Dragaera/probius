@@ -2,7 +2,9 @@ package workers
 
 import (
 	"fmt"
+	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/config"
+	"github.com/dragaera/probius/internal/discord"
 	"github.com/dragaera/probius/internal/persistence"
 	"github.com/gocraft/work"
 	"github.com/gomodule/redigo/redis"
@@ -14,13 +16,21 @@ import (
 )
 
 type Pool struct {
-	Config *config.Config
-	pool   *work.WorkerPool
-	Redis  *redis.Pool
-	DB     *gorm.DB
+	Config  *config.Config
+	Session *discordgo.Session
+	pool    *work.WorkerPool
+	Redis   *redis.Pool
+	DB      *gorm.DB
 }
 
 func (pool *Pool) Run() error {
+	err := pool.Session.Open()
+	if err != nil {
+		return fmt.Errorf("Error connecting to Discord:", err)
+	}
+	defer pool.Session.Close()
+	log.Print("Discord connection established")
+
 	pool.pool.Start()
 	defer pool.pool.Stop()
 	log.Print("Worker pool started")
@@ -48,11 +58,14 @@ func Create(pool *Pool) (*Pool, error) {
 		return pool, fmt.Errorf("DB pool must not be nil")
 	}
 
-	ctxt := JobContext{
-		db: pool.DB,
+	dg, err := discordgo.New("Bot " + pool.Config.Discord.Token)
+	if err != nil {
+		return pool, fmt.Errorf("Error creating Discord session:", err)
 	}
+	pool.Session = dg
+
 	workerPool := work.NewWorkerPool(
-		ctxt,
+		JobContext{},
 		uint(pool.Config.Worker.Concurrency), // Number of worker processes per pool process
 		pool.Config.Worker.Namespace,
 		pool.Redis,
@@ -60,7 +73,7 @@ func Create(pool *Pool) (*Pool, error) {
 	pool.pool = workerPool
 
 	workerPool.Middleware(LogStart)
-	workerPool.Middleware(pool.InjectDB)
+	workerPool.Middleware(pool.EnrichContext)
 
 	workerPool.Job("check_last_replay", CheckLastReplay)
 
@@ -68,8 +81,9 @@ func Create(pool *Pool) (*Pool, error) {
 }
 
 type JobContext struct {
-	id int
-	db *gorm.DB
+	id      int
+	db      *gorm.DB
+	session *discordgo.Session
 }
 
 func LogStart(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
@@ -78,8 +92,9 @@ func LogStart(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) err
 	return next()
 }
 
-func (pool *Pool) InjectDB(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
+func (pool *Pool) EnrichContext(ctxt *JobContext, job *work.Job, next work.NextMiddlewareFunc) error {
 	ctxt.db = pool.DB
+	ctxt.session = pool.Session
 
 	return next()
 }
@@ -103,12 +118,43 @@ func CheckLastReplay(ctxt *JobContext, job *work.Job) error {
 
 	if changed {
 		log.Printf("New replay for user %+v found.", user)
-		// TODO
+		subscriptions, err := user.GetSubscriptions(ctxt.db)
+		if err != nil {
+			log.Print("Error retrieving user's subscriptions: ", err)
+			return err
+		}
+
+		for _, sub := range subscriptions {
+			embed := discord.BuildReplayEmbed(
+				user.API(),
+				replay,
+			)
+
+			err = sendEmbed(
+				ctxt.session,
+				sub.DiscordChannel.DiscordID,
+				&embed,
+			)
+			if err != nil {
+				log.Print("Error sending replay embed: ", err)
+				return err
+			}
+		}
 	} else {
 		log.Printf("No new replay for user %+v found.", user)
 	}
 
-	log.Printf("PLACEHOLDER %v", replay)
+	return nil
+}
 
+func sendEmbed(sess *discordgo.Session, channelID string, embed *discordgo.MessageEmbed) error {
+	_, err := sess.ChannelMessageSendEmbed(
+		channelID,
+		embed,
+	)
+
+	if err != nil {
+		return fmt.Errorf("Error sending message: %v", err)
+	}
 	return nil
 }

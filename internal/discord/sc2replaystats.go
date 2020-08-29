@@ -87,7 +87,7 @@ func (bot *Bot) cmdLast(ctxt CommandContext) bool {
 		return true
 	}
 
-	embed := buildReplayEmbed(user.API(), replay)
+	embed := BuildReplayEmbed(user.API(), replay)
 	ctxt.RespondEmbed(&embed)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("Unable to embed replay: %v", err))
@@ -118,7 +118,7 @@ func (bot *Bot) cmdReplay(ctxt CommandContext) bool {
 		return true
 	}
 
-	embed := buildReplayEmbed(api, replay)
+	embed := BuildReplayEmbed(api, replay)
 	err = ctxt.RespondEmbed(&embed)
 	if err != nil {
 		ctxt.Respond(fmt.Sprintf("Unable to embed replay: %v", err))
@@ -251,7 +251,7 @@ func (bot *Bot) enrichSC2ReplayStatsUser(cmd Command, ctxt CommandContext) (Comm
 	return sc2rCtxt, err
 }
 
-func buildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {
+func BuildReplayEmbed(api sc2r.API, replay sc2r.Replay) discordgo.MessageEmbed {
 	mapField := discordgo.MessageEmbedField{
 		Name:   "Map",
 		Value:  replay.MapName,

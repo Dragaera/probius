@@ -24,11 +24,6 @@ func main() {
 		log.Fatal("Error while creating Discord bot: ", err)
 	}
 
-	db, err := persistence.InitializeDB(cfg.DB.DBURL())
-	if err != nil {
-		log.Fatal("Error while initializing persistence layer: ", err)
-	}
-
 	orm, err := persistence.InitializeORM(cfg.DB)
 	if err != nil {
 		log.Fatal("Error while initializing ORM persistence layer: ", err)
@@ -36,7 +31,7 @@ func main() {
 
 	log.Print("Starting Discord bot.")
 
-	err = bot.Run(db, orm)
+	err = bot.Run(orm)
 	if err != nil {
 		log.Fatal("Error while starting Discord bot: ", err)
 	}

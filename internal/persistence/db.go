@@ -1,10 +1,8 @@
 package persistence
 
 import (
-	"context"
 	"fmt"
 	"github.com/dragaera/probius/internal/config"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -12,15 +10,6 @@ import (
 	"os"
 	"time"
 )
-
-func InitializeDB(dbURL string) (*pgxpool.Pool, error) {
-	dbpool, err := pgxpool.Connect(context.Background(), dbURL)
-	if err != nil {
-		return dbpool, fmt.Errorf("Unable to connect to database:", err)
-	}
-
-	return dbpool, nil
-}
 
 func InitializeORM(cfg config.DBConfig) (*gorm.DB, error) {
 	var logMode logger.LogLevel
@@ -40,7 +29,7 @@ func InitializeORM(cfg config.DBConfig) (*gorm.DB, error) {
 	)
 
 	db, err := gorm.Open(
-		postgres.Open(cfg.DBURL2()),
+		postgres.Open(cfg.DBURL()),
 		&gorm.Config{
 			Logger: logger,
 		},

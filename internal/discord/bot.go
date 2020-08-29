@@ -5,7 +5,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/dragaera/probius/internal/config"
 	"github.com/dragaera/probius/internal/persistence"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"gorm.io/gorm"
 	"log"
 	"os"
@@ -21,17 +20,13 @@ type Bot struct {
 	Config    config.Config
 	Session   *discordgo.Session
 	cmdRouter *CommandRouter
-	db        *pgxpool.Pool
 	orm       *gorm.DB
 }
 
-func (bot *Bot) Run(db *pgxpool.Pool, orm *gorm.DB) error {
+func (bot *Bot) Run(orm *gorm.DB) error {
 	if bot.Session == nil {
 		return fmt.Errorf("Bot not initiated, be sure to use discord.Create(...)")
 	}
-
-	bot.db = db
-	defer bot.db.Close()
 
 	bot.orm = orm
 	// TODO: Do we need to close it? Docs don't mention it anymore from v2 on onwards

@@ -41,18 +41,6 @@ type WorkerConfig struct {
 
 func (cfg *DBConfig) DBURL() string {
 	return fmt.Sprintf(
-		"postgres://%v:%v@%v:%v/%v",
-		cfg.User,
-		cfg.Password,
-		cfg.Host,
-		cfg.Port,
-		cfg.Database,
-	)
-}
-
-func (cfg *DBConfig) DBURL2() string {
-	// TODO: Allow configuring SSL mode
-	return fmt.Sprintf(
 		"host=%v port=%v user=%v dbname=%v password=%v sslmode=%v",
 		cfg.Host,
 		cfg.Port,

@@ -29,8 +29,6 @@ func (bot *Bot) Run(orm *gorm.DB) error {
 	}
 
 	bot.orm = orm
-	// TODO: Do we need to close it? Docs don't mention it anymore from v2 on onwards
-	// defer bot.orm.Close()
 
 	err := bot.Session.Open()
 	if err != nil {

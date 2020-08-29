@@ -21,9 +21,6 @@ type Pool struct {
 }
 
 func (pool *Pool) Run() error {
-	// TODO does the Gorm DB need closing?
-	// defer pool.DB.Close()
-
 	pool.pool.Start()
 	defer pool.pool.Stop()
 	log.Print("Worker pool started")

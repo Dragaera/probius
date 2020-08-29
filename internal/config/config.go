@@ -42,6 +42,7 @@ type WorkerConfig struct {
 
 type SC2ReplayStatsConfig struct {
 	UpdateInterval int
+	LockTTL        int
 }
 
 func (cfg *DBConfig) DBURL() string {
@@ -82,6 +83,7 @@ func ConfigFromEnv() Config {
 
 	sc2rCfg := SC2ReplayStatsConfig{}
 	sc2rCfg.UpdateInterval = intFromEnvWithDefault("SC2_REPLAY_STATS_UPDATE_INTERVAL", 5*60)
+	sc2rCfg.LockTTL = intFromEnvWithDefault("SC2_REPLAY_STATS_LOCK_TTL", 15*60)
 
 	cfg := Config{
 		DB:             dbCfg,

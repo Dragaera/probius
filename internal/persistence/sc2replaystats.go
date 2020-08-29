@@ -4,6 +4,7 @@ import (
 	"fmt"
 	sc2r "github.com/dragaera/probius/internal/sc2replaystats"
 	"gorm.io/gorm"
+	"log"
 	"time"
 )
 
@@ -105,4 +106,19 @@ func SC2ReplayStatsUsersWithStaleData(orm *gorm.DB, updateInterval int) ([]SC2Re
 	}
 
 	return users, err
+}
+
+func ClearStaleSC2ReplayStatsUpdateLocks(orm *gorm.DB, ttl int) error {
+	ts := time.Now().Add(time.Second * time.Duration(-ttl))
+	err := orm.
+		Model(&SC2ReplayStatsUser{}).
+		Where("update_scheduled_at <= ?", ts).
+		Update("update_scheduled_at", nil).
+		Error
+	if err != nil {
+		err = fmt.Errorf("Unable to clear stale locks: %v", err)
+		log.Print(">>>>>", err)
+	}
+
+	return err
 }

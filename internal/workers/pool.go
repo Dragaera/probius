@@ -81,11 +81,13 @@ func Create(pool *Pool) (*Pool, error) {
 	// Job handlers
 	workerPool.Job("check_last_replay", CheckLastReplay)
 	workerPool.Job("check_stale_players", CheckStalePlayers)
+	workerPool.Job("clear_stale_locks", ClearStaleLocks)
 
 	// Periodic jobs
 	// seconds hours minutes day-of-month month week-of-day
 	// (as per https://github.com/gocraft/work/)
 	workerPool.PeriodicallyEnqueue("0 * * * * *", "check_stale_players")
+	workerPool.PeriodicallyEnqueue("0 * * * * *", "clear_stale_locks")
 
 	return pool, nil
 }
@@ -180,6 +182,13 @@ func CheckStalePlayers(ctxt *JobContext, job *work.Job) error {
 	}
 
 	return nil
+}
+
+func ClearStaleLocks(ctxt *JobContext, job *work.Job) error {
+	return persistence.ClearStaleSC2ReplayStatsUpdateLocks(
+		ctxt.db,
+		ctxt.config.SC2ReplayStats.LockTTL,
+	)
 }
 
 func sendEmbed(sess *discordgo.Session, channelID string, embed *discordgo.MessageEmbed) error {

@@ -2,7 +2,7 @@ package units
 
 type Unit struct {
 	Name   string
-	Supply int
+	Supply float64
 }
 
 var Units = map[string]Unit{
@@ -51,24 +51,21 @@ var Units = map[string]Unit{
 	"Raven":             Unit{"Raven", 2},
 	"Battlecruiser":     Unit{"Battlecruiser", 6},
 	// Zerg
-	"Drone": Unit{"Drone", 1},
-	"Queen": Unit{"Queen", 2},
-	// TODO do we have UnitSpawn / UnitInit for those, or only via UnitTypeChange from an egg?
-	"Zergling": Unit{"Zergling", 0.5},
-	"Baneling": Unit{"Baneling", 0.5},
-	"Roach":    Unit{"Roach", 2},
-	// TODO See above
-	"Ravager":   Unit{"Ravager", 3},
-	"Hydralisk": Unit{"Hydralisk", 2},
-	// TODO See above
-	"Lurker":     Unit{"Lurker", 3},
-	"Infestor":   Unit{"Infestor", 2},
-	"Swarm Host": Unit{"Swarm Host", 3},
-	"Ultralisk":  Unit{"Ultralisk", 6},
-	"Overlord":   Unit{"Overlord", 0},
-	"Overseer":   Unit{"Overseer", 0},
-	"Mutalisk":   Unit{"Mutalisk", 2},
-	"Corruptor":  Unit{"Corruptor", 2},
-	"Viper":      Unit{"Viper", 3},
-	"BroodLord":  Unit{"Brood Lord", 4},
+	"Drone":       Unit{"Drone", 1},
+	"Queen":       Unit{"Queen", 2},
+	"Zergling":    Unit{"Zergling", 0.5},
+	"Baneling":    Unit{"Baneling", 0.5},
+	"Roach":       Unit{"Roach", 2},
+	"Ravager":     Unit{"Ravager", 3},
+	"Hydralisk":   Unit{"Hydralisk", 2},
+	"LurkerMP":    Unit{"Lurker", 3},
+	"Infestor":    Unit{"Infestor", 2},
+	"SwarmHostMP": Unit{"Swarm Host", 3},
+	"Ultralisk":   Unit{"Ultralisk", 6},
+	"Overlord":    Unit{"Overlord", 0},
+	"Overseer":    Unit{"Overseer", 0},
+	"Mutalisk":    Unit{"Mutalisk", 2},
+	"Corruptor":   Unit{"Corruptor", 2},
+	"Viper":       Unit{"Viper", 3},
+	"BroodLord":   Unit{"Brood Lord", 4},
 }

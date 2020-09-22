@@ -258,7 +258,6 @@ func (stats *UnitStats) replaceUnit(index int64, recycle int64, name string) err
 	}
 	// Cannot change struct fields in maps
 	existing := stats.Units[tag]
-	fmt.Printf("UnitTypeChange: %s => %s\n", existing.Name, name)
 	existing.Name = name
 	stats.Units[tag] = existing
 

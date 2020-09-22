@@ -1,38 +1,5 @@
 package events
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
-// Used only for composition
-type BaseEvent struct {
-	ID   int `json:"id"`
-	Loop int `json:"loop"`
-	// EventType EventType `json:"evtTypeName"`
-}
-
-// 1 = true, 0 = false. Because we're in 1995
-type IntBool bool
-
-func (intBool *IntBool) UnmarshalJSON(b []byte) error {
-	var i int
-	if err := json.Unmarshal(b, &i); err != nil {
-		return err
-	}
-
-	switch i {
-	case 0:
-		*intBool = false
-	case 1:
-		*intBool = true
-	default:
-		return fmt.Errorf("Invalid error for boolean: %v", i)
-	}
-
-	return nil
-}
-
 // type EventType struct {
 // 	// reflect.Type is an interface, and as such cannot be the receiver of
 // 	// any functions. So to define UnmarshalJSON on it, we'll have it as
@@ -82,20 +49,20 @@ func (intBool *IntBool) UnmarshalJSON(b []byte) error {
 
 // Used only for composition
 type WithPosition struct {
-	X int `json:"x"`
-	Y int `json:"y"`
+	X int64 `json:"x"`
+	Y int64 `json:"y"`
 }
 
 // Used only for composition
 type WithPlayerOwned struct {
-	ControlPlayerID int `json:"controlPlayerId"`
-	UpkeepPlayerID  int `json:"upkeepPlayerId"`
+	ControlPlayerID int64 `json:"controlPlayerId"`
+	UpkeepPlayerID  int64 `json:"upkeepPlayerId"`
 }
 
 // Used only for composition
 type WithUnitTag struct {
-	UnitTagIndex   int     `json:"unitTagIndex"`
-	UnitTagRecycle IntBool `json:"unitTagRecycle"`
+	UnitTagIndex   int64 `json:"unitTagIndex"`
+	UnitTagRecycle int64 `json:"unitTagRecycle"`
 }
 
 // Used only for composition
@@ -105,16 +72,16 @@ type WithUnitName struct {
 
 type PlayerSetup struct {
 	BaseEvent
-	PlayerID int `json:"playerId"`
-	UserID   int `json:"userId"`
-	SlotID   int `json:"slotId"`
-	Type     int `json:"type"`
+	PlayerID int64 `json:"playerId"`
+	UserID   int64 `json:"userId"`
+	SlotID   int64 `json:"slotId"`
+	Type     int64 `json:"type"`
 }
 
 type Upgrade struct {
 	BaseEvent
-	PlayerID        int    `json:"playerId"`
-	Count           int    `json:"count"`
+	PlayerID        int64  `json:"playerId"`
+	Count           int64  `json:"count"`
 	UpgradeTypeName string `json:"upgradeTypeName"`
 }
 
@@ -125,9 +92,9 @@ type UnitBorn struct {
 	WithUnitTag
 	WithUnitName
 
-	CreatorAbilityName    *string  `json:"creatorAbilityName"`
-	CreatorUnitTagInded   *int     `json:"creatorUnitTagIndex"`
-	CreatorUnitTagRecycle *IntBool `json:"creatorUnitTagRecycle"`
+	CreatorAbilityName    *string `json:"creatorAbilityName"`
+	CreatorUnitTagIndex   *int64  `json:"creatorUnitTagIndex"`
+	CreatorUnitTagRecycle *int64  `json:"creatorUnitTagRecycle"`
 }
 
 type UnitInit struct {
@@ -152,8 +119,8 @@ type UnitTypeChange struct {
 type UnitPositions struct {
 	BaseEvent
 
-	FirstUnitIndex int   `json:"firstUnitIndex"`
-	Items          []int `json:"items"`
+	FirstUnitIndex int64   `json:"firstUnitIndex"`
+	Items          []int64 `json:"items"`
 }
 
 type UnitOwnerChange struct {
@@ -167,69 +134,69 @@ type UnitDied struct {
 	WithPosition
 	WithUnitTag
 
-	KillerPlayerID       *int     `json:"killerPlayerId"`
-	KillerUnitTagIndex   *int     `json:"killerUnitTagIndex"`
-	KillerUnitTagRecycle *IntBool `json:"killerUnitTagRecycle"`
+	KillerPlayerID       *int64 `json:"killerPlayerId"`
+	KillerUnitTagIndex   *int64 `json:"killerUnitTagIndex"`
+	KillerUnitTagRecycle *int64 `json:"killerUnitTagRecycle"`
 }
 
 type PlayerStats struct {
 	BaseEvent
-	PlayerID int `json:"playerId"`
+	PlayerID int64 `json:"playerId"`
 
 	Stats Stats
 }
 
 type Stats struct {
-	FoodMade int `json:"scoreValueFoodMade"`
-	FoodUsed int `json:"scoreValueFoodUsed"`
+	FoodMade int64 `json:"scoreValueFoodMade"`
+	FoodUsed int64 `json:"scoreValueFoodUsed"`
 
-	MineralsCollectionRate int `json:"scoreValueMineralsCollectionRate"`
-	MineralsCurrent        int `json:"scoreValueMineralsCurrent"`
+	MineralsCollectionRate int64 `json:"scoreValueMineralsCollectionRate"`
+	MineralsCurrent        int64 `json:"scoreValueMineralsCurrent"`
 
-	MineralsFriendlyFireArmy       int `json:"scoreValueMineralsFriendlyFireArmy"`
-	MineralsFriendlyFireEconomy    int `json:"scoreValueMineralsFriendlyFireEconomy"`
-	MineralsFriendlyFireTechnology int `json:"scoreValueMineralsFriendlyFireEconomy"`
+	MineralsFriendlyFireArmy       int64 `json:"scoreValueMineralsFriendlyFireArmy"`
+	MineralsFriendlyFireEconomy    int64 `json:"scoreValueMineralsFriendlyFireEconomy"`
+	MineralsFriendlyFireTechnology int64 `json:"scoreValueMineralsFriendlyFireEconomy"`
 
-	MineralsKilledArmy       int `json:"scoreValueMineralsKilledArmy"`
-	MineralsKilledEconomy    int `json:"scoreValueMineralsKilledEconomy"`
-	MineralsKilledTechnology int `json:"scoreValueMineralsKilledTechnology"`
+	MineralsKilledArmy       int64 `json:"scoreValueMineralsKilledArmy"`
+	MineralsKilledEconomy    int64 `json:"scoreValueMineralsKilledEconomy"`
+	MineralsKilledTechnology int64 `json:"scoreValueMineralsKilledTechnology"`
 
-	MineralsLostArmy       int `json:"scoreValueMineralsLostArmy"`
-	MineralsLostEconomy    int `json:"scoreValueMineralsLostEconomy"`
-	MineralsLostTechnology int `json:"scoreValueMineralsLostTechnology"`
+	MineralsLostArmy       int64 `json:"scoreValueMineralsLostArmy"`
+	MineralsLostEconomy    int64 `json:"scoreValueMineralsLostEconomy"`
+	MineralsLostTechnology int64 `json:"scoreValueMineralsLostTechnology"`
 
-	MineralsUsedActiveForces      int `json:"scoreValueMineralsUsedActiveForces"`
-	MineralsUsedCurrentArmy       int `json:"scoreValueMineralsUsedCurrentArmy"`
-	MineralsUsedCurrentEconomy    int `json:"scoreValueMineralsUsedCurrentEconomy"`
-	MineralsUsedCurrentTechnology int `json:"scoreValueMineralsUsedCurrentTechnology"`
+	MineralsUsedActiveForces      int64 `json:"scoreValueMineralsUsedActiveForces"`
+	MineralsUsedCurrentArmy       int64 `json:"scoreValueMineralsUsedCurrentArmy"`
+	MineralsUsedCurrentEconomy    int64 `json:"scoreValueMineralsUsedCurrentEconomy"`
+	MineralsUsedCurrentTechnology int64 `json:"scoreValueMineralsUsedCurrentTechnology"`
 
-	MineralsUsedInProgressArmy       int `json:"scoreValueMineralsUsedInProgressArmy"`
-	MineralsUsedInProgressEconomy    int `json:"scoreValueMineralsUsedInProgressEconomy"`
-	MineralsUsedInProgressTechnology int `json:"scoreValueMineralsUsedInProgressTechnology"`
+	MineralsUsedInProgressArmy       int64 `json:"scoreValueMineralsUsedInProgressArmy"`
+	MineralsUsedInProgressEconomy    int64 `json:"scoreValueMineralsUsedInProgressEconomy"`
+	MineralsUsedInProgressTechnology int64 `json:"scoreValueMineralsUsedInProgressTechnology"`
 
-	VespeneCollectionRate int `json:"scoreValueVespeneCollectionRate"`
-	VespeneCurrent        int `json:"scoreValueVespeneCurrent"`
+	VespeneCollectionRate int64 `json:"scoreValueVespeneCollectionRate"`
+	VespeneCurrent        int64 `json:"scoreValueVespeneCurrent"`
 
-	VespeneFriendlyFireArmy       int `json:"scoreValueVespeneFriendlyFireArmy"`
-	VespeneFriendlyFireEconomy    int `json:"scoreValueVespeneFriendlyFireEconomy"`
-	VespeneFriendlyFireTechnology int `json:"scoreValueVespeneFriendlyFireEconomy"`
+	VespeneFriendlyFireArmy       int64 `json:"scoreValueVespeneFriendlyFireArmy"`
+	VespeneFriendlyFireEconomy    int64 `json:"scoreValueVespeneFriendlyFireEconomy"`
+	VespeneFriendlyFireTechnology int64 `json:"scoreValueVespeneFriendlyFireEconomy"`
 
-	VespeneKilledArmy       int `json:"scoreValueVespeneKilledArmy"`
-	VespeneKilledEconomy    int `json:"scoreValueVespeneKilledEconomy"`
-	VespeneKilledTechnology int `json:"scoreValueVespeneKilledTechnology"`
+	VespeneKilledArmy       int64 `json:"scoreValueVespeneKilledArmy"`
+	VespeneKilledEconomy    int64 `json:"scoreValueVespeneKilledEconomy"`
+	VespeneKilledTechnology int64 `json:"scoreValueVespeneKilledTechnology"`
 
-	VespeneLostArmy       int `json:"scoreValueVespeneLostArmy"`
-	VespeneLostEconomy    int `json:"scoreValueVespeneLostEconomy"`
-	VespeneLostTechnology int `json:"scoreValueVespeneLostTechnology"`
+	VespeneLostArmy       int64 `json:"scoreValueVespeneLostArmy"`
+	VespeneLostEconomy    int64 `json:"scoreValueVespeneLostEconomy"`
+	VespeneLostTechnology int64 `json:"scoreValueVespeneLostTechnology"`
 
-	VespeneUsedActiveForces      int `json:"scoreValueVespeneUsedActiveForces"`
-	VespeneUsedCurrentArmy       int `json:"scoreValueVespeneUsedCurrentArmy"`
-	VespeneUsedCurrentEconomy    int `json:"scoreValueVespeneUsedCurrentEconomy"`
-	VespeneUsedCurrentTechnology int `json:"scoreValueVespeneUsedCurrentTechnology"`
+	VespeneUsedActiveForces      int64 `json:"scoreValueVespeneUsedActiveForces"`
+	VespeneUsedCurrentArmy       int64 `json:"scoreValueVespeneUsedCurrentArmy"`
+	VespeneUsedCurrentEconomy    int64 `json:"scoreValueVespeneUsedCurrentEconomy"`
+	VespeneUsedCurrentTechnology int64 `json:"scoreValueVespeneUsedCurrentTechnology"`
 
-	VespeneUsedInProgressArmy       int `json:"scoreValueVespeneUsedInProgressArmy"`
-	VespeneUsedInProgressEconomy    int `json:"scoreValueVespeneUsedInProgressEconomy"`
-	VespeneUsedInProgressTechnology int `json:"scoreValueVespeneUsedInProgressTechnology"`
+	VespeneUsedInProgressArmy       int64 `json:"scoreValueVespeneUsedInProgressArmy"`
+	VespeneUsedInProgressEconomy    int64 `json:"scoreValueVespeneUsedInProgressEconomy"`
+	VespeneUsedInProgressTechnology int64 `json:"scoreValueVespeneUsedInProgressTechnology"`
 
-	WorkersActiveCount int `json:"scoreValueWorkersActiveCount"`
+	WorkersActiveCount int64 `json:"scoreValueWorkersActiveCount"`
 }

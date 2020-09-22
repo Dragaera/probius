@@ -38,6 +38,13 @@ github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0U
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/hashicorp/golang-lru v0.5.4/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
+github.com/icza/mpq v0.0.0-20170726141842-266342679beb/go.mod h1:iWOw+dZSITjPKFPiCNT7QE+xENOlT/YrBtMYkImipFo=
+github.com/icza/mpq v0.0.0-20200521101201-ff3251015c87 h1:J3vsdfseQUvLjGtt8qMe9fq8xyloW/T+tKhdXlj+EK0=
+github.com/icza/mpq v0.0.0-20200521101201-ff3251015c87/go.mod h1:iWOw+dZSITjPKFPiCNT7QE+xENOlT/YrBtMYkImipFo=
+github.com/icza/s2prot v1.4.0 h1:8+pD/fuJzdwyXTlGy/soYiIAKALVEbqWWf6BDe2L+0o=
+github.com/icza/s2prot v1.4.0/go.mod h1:+KA56x5KbegBW5T7DJNBdk1JbzOzNd4V26UoH3LRZ7c=
+github.com/icza/s2prot v1.4.1-0.20200825134123-6a8d8a95ef42 h1:W6GsVK2ShydKwqvdMPGhFeBd1Nxto3S9rSrFlq3K7RI=
+github.com/icza/s2prot v1.4.1-0.20200825134123-6a8d8a95ef42/go.mod h1:Aw3BgGOZ83Qkxmz90i22WFCMiDU4oOFT5D3hoDLBl3E=
 github.com/jackc/chunkreader v1.0.0 h1:4s39bBR8ByfqH+DKm8rQA3E1LHZWB9XWcrz8fqaZbe0=
 github.com/jackc/chunkreader v1.0.0/go.mod h1:RT6O25fNZIuasFJRyZ4R/Y2BbhasbmZXF9QQ7T3kePo=
 github.com/jackc/chunkreader/v2 v2.0.0/go.mod h1:odVSm741yZoC3dpHEUXIqA9tQRhFrgOHwnPIn9lDKlk=

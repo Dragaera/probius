@@ -151,23 +151,37 @@ func buildSupplyEmbed(report *sc2replay.Report, timestamp string) discordgo.Mess
 		Inline: true,
 	}
 
+	separatorField := discordgo.MessageEmbedField{
+		Name:   "Systems",
+		Value:  "Nominal",
+		Inline: false,
+	}
+
 	unitField := discordgo.MessageEmbedField{
 		Name:   "Units",
 		Value:  buildUnitList(report),
-		Inline: false,
+		Inline: true,
 	}
 
 	buildingField := discordgo.MessageEmbedField{
 		Name:   "Buildings",
 		Value:  buildBuildingList(report),
-		Inline: false,
+		Inline: true,
+	}
+
+	upgradeField := discordgo.MessageEmbedField{
+		Name:   "Upgrades",
+		Value:  buildUpgradeList(report),
+		Inline: true,
 	}
 
 	fields := []*discordgo.MessageEmbedField{
 		&timestampField,
 		&supplyField,
+		&separatorField,
 		&unitField,
 		&buildingField,
+		&upgradeField,
 	}
 
 	embed := discordgo.MessageEmbed{
@@ -202,6 +216,20 @@ func buildBuildingList(report *sc2replay.Report) string {
 			"- %v: %v\n",
 			name,
 			count,
+		)
+	}
+
+	return out.String()
+}
+
+func buildUpgradeList(report *sc2replay.Report) string {
+	out := strings.Builder{}
+
+	for _, upgrade := range report.Upgrades {
+		fmt.Fprintf(
+			&out,
+			"- %v\n",
+			upgrade.Name,
 		)
 	}
 

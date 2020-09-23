@@ -18,19 +18,33 @@ type IngameUnit struct {
 	OwnerID int64
 }
 
+type IngameUpgrade struct {
+	Name string
+	// The ID of the one towards whose *upkeep* it counts. Ie we don't care
+	// about neuralled units etc.
+	OwnerID int64
+}
+
 type Report struct {
 	PlayerID int64
 	Replay   *Replay
 	// Map containing everything the game considers a unit. This also
 	// includes buildings, mineral patches etc. This also contains units
 	// owned by other players.
-	IngameUnits map[int64]IngameUnit
+	IngameUnits    map[int64]IngameUnit
+	IngameUpgrades []IngameUpgrade
+
 	// Map containing enriched units belonging to the specified player ID,
 	// and only those for which specific information is available.
 	Units map[int64]units.Unit
+
 	// Map containing enriched buildings belonging to the specified player
 	// ID, and only those for which specific information is available.
 	Buildings map[int64]units.Building
+
+	// List containing enriched updates belonging to the specified player
+	// ID, and only for those for which specific information is available.
+	Upgrades []units.Upgrade
 
 	// Count of units by ingame name
 	UnitCount     map[string]int
@@ -44,6 +58,7 @@ type Report struct {
 // Call this to generate the report.
 func (rep *Report) At(ticks int64) {
 	rep.IngameUnits = make(map[int64]IngameUnit)
+	rep.IngameUpgrades = make([]IngameUpgrade, 0)
 
 	for _, evt := range rep.Replay.Rep.TrackerEvts.Evts {
 		// We handle this here to allow an early exit
@@ -99,6 +114,10 @@ func (rep *Report) handleEvent(evt s2prot.Event) error {
 		}
 	case "UnitDied":
 		if err := rep.trackUnitDied(evt); err != nil {
+			return err
+		}
+	case "Upgrade":
+		if err := rep.trackUpgrade(evt); err != nil {
 			return err
 		}
 	default:
@@ -187,6 +206,17 @@ func (rep *Report) replaceUnit(index int64, recycle int64, name string) error {
 	return nil
 }
 
+func (rep *Report) trackUpgrade(evt s2prot.Event) error {
+	event := events.Upgrade{}
+	if err := json.Unmarshal([]byte(evt.String()), &event); err != nil {
+		return fmt.Errorf("Unable to unmarshal Upgrade event: %v", err)
+	}
+
+	rep.IngameUpgrades = append(rep.IngameUpgrades, IngameUpgrade{Name: event.UpgradeTypeName, OwnerID: event.PlayerID})
+
+	return nil
+}
+
 func (rep *Report) removeUnit(index int64, recycle int64) error {
 	tag := unitTag(index, recycle)
 
@@ -206,6 +236,14 @@ func (rep *Report) prune() {
 			delete(rep.IngameUnits, tag)
 		}
 	}
+
+	newUpgrades := make([]IngameUpgrade, 0)
+	for _, upgrade := range rep.IngameUpgrades {
+		if upgrade.OwnerID == rep.PlayerID {
+			newUpgrades = append(newUpgrades, upgrade)
+		}
+	}
+	rep.IngameUpgrades = newUpgrades
 }
 
 // Enrich with static per-unit information such as supply and name.
@@ -215,6 +253,7 @@ func (rep *Report) prune() {
 func (rep *Report) enrich() {
 	rep.Units = make(map[int64]units.Unit)
 	rep.Buildings = make(map[int64]units.Building)
+	rep.Upgrades = make([]units.Upgrade, 0)
 
 	for tag, unit := range rep.IngameUnits {
 		if enrichedUnit, ok := units.Units[unit.Name]; ok {
@@ -227,6 +266,14 @@ func (rep *Report) enrich() {
 			continue
 		}
 		// fmt.Printf("Unknown ingame unit: %v\n", unit.Name)
+	}
+
+	for _, upgrade := range rep.IngameUpgrades {
+		if enrichedUpgrade, ok := units.Upgrades[upgrade.Name]; ok {
+			rep.Upgrades = append(rep.Upgrades, enrichedUpgrade)
+			continue
+		}
+		// fmt.Printf("Unknown upgrade: %v\n", upgrade.Name)
 	}
 }
 

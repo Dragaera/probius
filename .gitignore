@@ -5,3 +5,4 @@
 /cmd/automigrate/automigrate
 /cmd/workers/workers
 /cmd/probius/probius
+replays/

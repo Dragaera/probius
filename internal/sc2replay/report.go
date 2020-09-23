@@ -50,15 +50,24 @@ type Report struct {
 	UnitCount     map[string]int
 	BuildingCount map[string]int
 
+	// Critter stats
+	CritterStats map[units.Critter]CritterStat
+
 	// Supply. As there are units with 0.5 supply, this is a float. Use
 	// `Report.IngameSupply()` for the integer (rounded) supply as shown in-game.
 	Supply float64
+}
+
+type CritterStat struct {
+	Total int
+	Alive int
 }
 
 // Call this to generate the report.
 func (rep *Report) At(ticks int64) {
 	rep.IngameUnits = make(map[int64]IngameUnit)
 	rep.IngameUpgrades = make([]IngameUpgrade, 0)
+	rep.CritterStats = make(map[units.Critter]CritterStat)
 
 	for _, evt := range rep.Replay.Rep.TrackerEvts.Evts {
 		// We handle this here to allow an early exit
@@ -188,6 +197,13 @@ func (rep *Report) addUnit(index int64, recycle int64, name string, ownerID int6
 	}
 	rep.IngameUnits[tag] = IngameUnit{Index: index, Recycle: recycle, Name: name, OwnerID: ownerID}
 
+	// Special treatment for critters :)
+	if critter, ok := units.Critters[name]; ok {
+		oldStats := rep.CritterStats[critter]
+		newStats := CritterStat{Total: oldStats.Total + 1, Alive: oldStats.Alive + 1}
+		rep.CritterStats[critter] = newStats
+	}
+
 	return nil
 }
 
@@ -220,10 +236,19 @@ func (rep *Report) trackUpgrade(evt s2prot.Event) error {
 func (rep *Report) removeUnit(index int64, recycle int64) error {
 	tag := unitTag(index, recycle)
 
-	if _, ok := rep.IngameUnits[tag]; !ok {
+	unit, ok := rep.IngameUnits[tag]
+	if !ok {
 		// Trying to remove a nonexistant unit
 		return fmt.Errorf("Tried to remove unit tag %d but does not exist", tag)
 	}
+
+	// Special treatment for critters :)
+	if critter, ok := units.Critters[unit.Name]; ok {
+		oldStats := rep.CritterStats[critter]
+		newStats := CritterStat{Total: oldStats.Total, Alive: oldStats.Alive - 1}
+		rep.CritterStats[critter] = newStats
+	}
+
 	delete(rep.IngameUnits, tag)
 
 	return nil

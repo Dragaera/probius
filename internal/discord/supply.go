@@ -151,9 +151,9 @@ func buildSupplyEmbed(report *sc2replay.Report, timestamp string) discordgo.Mess
 		Inline: true,
 	}
 
-	separatorField := discordgo.MessageEmbedField{
-		Name:   "Systems",
-		Value:  "Nominal",
+	critterField := discordgo.MessageEmbedField{
+		Name:   "Critters",
+		Value:  buildCritterList(report),
 		Inline: false,
 	}
 
@@ -178,7 +178,7 @@ func buildSupplyEmbed(report *sc2replay.Report, timestamp string) discordgo.Mess
 	fields := []*discordgo.MessageEmbedField{
 		&timestampField,
 		&supplyField,
-		&separatorField,
+		&critterField,
 		&unitField,
 		&buildingField,
 		&upgradeField,
@@ -190,6 +190,22 @@ func buildSupplyEmbed(report *sc2replay.Report, timestamp string) discordgo.Mess
 	}
 
 	return embed
+}
+
+func buildCritterList(report *sc2replay.Report) string {
+	out := strings.Builder{}
+
+	for critter, stats := range report.CritterStats {
+		fmt.Fprintf(
+			&out,
+			"- %v: %d/%d alive\n",
+			critter.Name,
+			stats.Alive,
+			stats.Total,
+		)
+	}
+
+	return out.String()
 }
 
 func buildUnitList(report *sc2replay.Report) string {

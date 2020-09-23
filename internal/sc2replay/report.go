@@ -28,9 +28,13 @@ type Report struct {
 	// Map containing enriched units belonging to the specified player ID,
 	// and only those for which specific information is available.
 	Units map[int64]units.Unit
+	// Map containing enriched buildings belonging to the specified player
+	// ID, and only those for which specific information is available.
+	Buildings map[int64]units.Building
 
 	// Count of units by ingame name
-	UnitCount map[string]int
+	UnitCount     map[string]int
+	BuildingCount map[string]int
 
 	// Supply. As there are units with 0.5 supply, this is a float. Use
 	// `Report.IngameSupply()` for the integer (rounded) supply as shown in-game.
@@ -59,6 +63,7 @@ func (rep *Report) At(ticks int64) {
 	rep.enrich()
 
 	rep.calculateUnitCount()
+	rep.calculateBuildingCount()
 	rep.calculateSupply()
 }
 
@@ -209,11 +214,19 @@ func (rep *Report) prune() {
 // units for which enriched information is available.
 func (rep *Report) enrich() {
 	rep.Units = make(map[int64]units.Unit)
+	rep.Buildings = make(map[int64]units.Building)
 
 	for tag, unit := range rep.IngameUnits {
 		if enrichedUnit, ok := units.Units[unit.Name]; ok {
 			rep.Units[tag] = enrichedUnit
+			continue
 		}
+
+		if enrichedBuilding, ok := units.Buildings[unit.Name]; ok {
+			rep.Buildings[tag] = enrichedBuilding
+			continue
+		}
+		// fmt.Printf("Unknown ingame unit: %v\n", unit.Name)
 	}
 }
 
@@ -222,6 +235,14 @@ func (rep *Report) calculateUnitCount() {
 
 	for _, unit := range rep.Units {
 		rep.UnitCount[unit.Name] += 1
+	}
+}
+
+func (rep *Report) calculateBuildingCount() {
+	rep.BuildingCount = make(map[string]int)
+
+	for _, building := range rep.Buildings {
+		rep.BuildingCount[building.Name] += 1
 	}
 }
 

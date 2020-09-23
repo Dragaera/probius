@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dragaera/probius/internal/sc2replay/events"
-	"github.com/icza/s2prot"
 	"github.com/icza/s2prot/rep"
 	"math"
 )
 
 type Replay struct {
-	rep *rep.Rep
+	Rep *rep.Rep
 }
 
 func FromFile(path string) (Replay, error) {
@@ -19,23 +18,17 @@ func FromFile(path string) (Replay, error) {
 	if err != nil {
 		return replay, fmt.Errorf("Failed to open replay file: %v", err)
 	}
-	replay.rep = rep
+	replay.Rep = rep
 
 	return replay, nil
 }
 
-func (replay *Replay) Dump() {
-	for _, player := range replay.rep.Details.Players() {
-		fmt.Println(player)
-	}
-}
-
 func (replay *Replay) Close() error {
-	return replay.rep.Close()
+	return replay.Rep.Close()
 }
 
 func (replay *Replay) TicksPerSecond() (float64, error) {
-	switch replay.rep.Details.GameSpeed() {
+	switch replay.Rep.Details.GameSpeed() {
 	case rep.GameSpeedSlower:
 		// 16 * 0.6
 		return 9.6, nil
@@ -74,7 +67,7 @@ func (replay *Replay) OwnerID() (int64, error) {
 	// The way it works: The *last* GameUserLeave event is the owner of the
 	// replay. AI does not cause any such events, so in a vs AI game there
 	// will be only one.
-	for _, evt := range replay.rep.GameEvts {
+	for _, evt := range replay.Rep.GameEvts {
 		switch eventType := evt.EvtType.Name; eventType {
 		case "GameUserLeave":
 			err := json.Unmarshal([]byte(evt.String()), &userLeave)
@@ -92,211 +85,56 @@ func (replay *Replay) OwnerID() (int64, error) {
 	return userLeave.UserID.UserID, nil
 }
 
+// Return the player ID corresponding to the *non-AI* player, running as the replay's owner.
 func (replay *Replay) OwnerPlayerID() (int64, error) {
 	userID, err := replay.OwnerID()
-	fmt.Println(userID)
 	if err != nil {
 		return 0, err
 	}
 
-	for playerID, playerDesc := range replay.rep.TrackerEvts.PIDPlayerDescMap {
+	// If there are AI opponents, there might be multiple players with the
+	// same user ID, as AI opponents are run by a human user.
+	// In the case of team-games with AI I assume the host is the one
+	// running the AIs, but I did not verify that.
+
+	possiblePlayers := make([]*(rep.PlayerDesc), 0)
+	for _, playerDesc := range replay.Rep.TrackerEvts.PIDPlayerDescMap {
 		if playerDesc.UserID == userID {
-			return playerID, nil
+			possiblePlayers = append(possiblePlayers, playerDesc)
 		}
 	}
 
-	return 0, fmt.Errorf("No player with User ID %d found", userID)
-}
+	switch len(possiblePlayers) {
+	case 0:
+		return 0, fmt.Errorf("No player with User ID %d found", userID)
+	case 1:
+		return possiblePlayers[0].PlayerID, nil
+	}
 
-func (replay *Replay) UnitsAt(ticks int64, playerID int64) map[string]int {
-	fmt.Printf("Calculating units at %d ticks by player %d\n", ticks, playerID)
+	// We're left with multiple possible players owned by the same user.
+	// We'll now narrow it down to only *human* players.
 
-	stats := UnitStats{PlayerID: playerID, Ticks: ticks}
-	stats.Units = make(map[int64]IngameUnit)
-
-	for _, evt := range replay.rep.TrackerEvts.Evts {
-		// We handle this here to allow an early exit
-		if evt.Loop() > ticks {
-			fmt.Printf("Reached %d ticks, stopping\n", ticks)
-			break
+	fmt.Println("Multiple possible replay owner player IDs detected, checking which players are human.")
+	possibleHumanPlayers := make([]*(rep.PlayerDesc), 0)
+	for _, desc := range possiblePlayers {
+		if int(desc.SlotID) > len(replay.Rep.InitData.LobbyState.Slots)-1 {
+			// Shouldn't ever happen, as slots 0-15 are always populated (even if empty), but who knows...
+			fmt.Printf("Player %d has no slot assigned, skipping\n", desc.PlayerID)
+			continue
 		}
-		if err := stats.handleEvent(evt); err != nil {
-			fmt.Printf("Error while handling event: %v\n", err)
-			fmt.Printf("%+v\n", evt)
+		slot := replay.Rep.InitData.LobbyState.Slots[desc.SlotID]
+
+		if slot.Control() == rep.ControlHuman {
+			possibleHumanPlayers = append(possibleHumanPlayers, desc)
 		}
 	}
 
-	stats.prune()
-	return stats.summarize()
-}
-
-type UnitStats struct {
-	PlayerID int64
-	Ticks    int64
-	Units    map[int64]IngameUnit
-}
-
-type IngameUnit struct {
-	Index   int64
-	Recycle int64
-	Name    string
-	// The ID of the one towards whose *upkeep* it counts. Ie we don't care
-	// about neuralled units etc.
-	OwnerID int64
-}
-
-func (stats *UnitStats) handleEvent(evt s2prot.Event) error {
-	if evt.Loop() > stats.Ticks {
-		return nil
-	}
-
-	switch eventType := evt.EvtType.Name; eventType {
-	case "UnitBorn":
-		if err := stats.trackUnitBorn(evt); err != nil {
-			return err
-		}
-	case "UnitInit":
-		if err := stats.trackUnitInit(evt); err != nil {
-			return err
-		}
-	case "UnitDone":
-		// UnitDone is for eg:
-		// - A unit finishing warpin
-		// - A building finishing morphing
-		// As we already add units to the unit list when they start
-		// building, we have no need for this.
-	case "UnitTypeChange":
-		// UnitTypeChange is for eg:
-		// - Buildings transforming (eg gateway => warpgate)
-		// - Creep tumors burrowing
-		// - Larva transforming into eggs
-		// - Hellions transforming into Hellbats
-		if err := stats.trackUnitTypeChange(evt); err != nil {
-			return err
-		}
-	case "UnitDied":
-		if err := stats.trackUnitDied(evt); err != nil {
-			return err
-		}
+	switch len(possibleHumanPlayers) {
+	case 0:
+		return 0, fmt.Errorf("No possible human replay owners detected")
+	case 1:
+		return possibleHumanPlayers[0].PlayerID, nil
 	default:
-		// fmt.Printf("[%d]: %s by %d\n", evt.Loop(), eventType, evt.UserID())
+		return 0, fmt.Errorf("%d possible human replay owners detected", len(possibleHumanPlayers))
 	}
-
-	return nil
-}
-
-func (stats *UnitStats) trackUnitBorn(evt s2prot.Event) error {
-	event := events.UnitBorn{}
-	if err := json.Unmarshal([]byte(evt.String()), &event); err != nil {
-		return fmt.Errorf("Unable to unmarshal UnitBorn event: %v", err)
-	}
-
-	if err := stats.addUnit(event.UnitTagIndex, event.UnitTagRecycle, event.UnitTypeName, event.UpkeepPlayerID); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (stats *UnitStats) trackUnitInit(evt s2prot.Event) error {
-	event := events.UnitInit{}
-	if err := json.Unmarshal([]byte(evt.String()), &event); err != nil {
-		return fmt.Errorf("Unable to unmarshal UnitInit event: %v", err)
-	}
-
-	if err := stats.addUnit(event.UnitTagIndex, event.UnitTagRecycle, event.UnitTypeName, event.UpkeepPlayerID); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (stats *UnitStats) trackUnitTypeChange(evt s2prot.Event) error {
-	event := events.UnitTypeChange{}
-	if err := json.Unmarshal([]byte(evt.String()), &event); err != nil {
-		return fmt.Errorf("Unable to unmarshal UnitTypeChange event: %v", err)
-	}
-
-	if err := stats.replaceUnit(event.UnitTagIndex, event.UnitTagRecycle, event.UnitTypeName); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (stats *UnitStats) trackUnitDied(evt s2prot.Event) error {
-	event := events.UnitDied{}
-	if err := json.Unmarshal([]byte(evt.String()), &event); err != nil {
-		return fmt.Errorf("Unable to unmarshal UnitDied event: %v", err)
-	}
-
-	if err := stats.removeUnit(event.UnitTagIndex, event.UnitTagRecycle); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (stats *UnitStats) addUnit(index int64, recycle int64, name string, ownerID int64) error {
-	tag := unitTag(index, recycle)
-
-	if existing, ok := stats.Units[tag]; ok {
-		// Unit with given tag exists already => That's a mistake
-		return fmt.Errorf("Unit tag %d reused. Existing: %s, new: %s", tag, existing, name)
-	}
-	stats.Units[tag] = IngameUnit{Index: index, Recycle: recycle, Name: name, OwnerID: ownerID}
-
-	return nil
-}
-
-func (stats *UnitStats) replaceUnit(index int64, recycle int64, name string) error {
-	tag := unitTag(index, recycle)
-
-	if _, ok := stats.Units[tag]; !ok {
-		// Trying to replace a nonexistant unit
-		return fmt.Errorf("Tried to replace unit with tag %d but does not exist", tag)
-	}
-	// Cannot change struct fields in maps
-	existing := stats.Units[tag]
-	existing.Name = name
-	stats.Units[tag] = existing
-
-	return nil
-}
-
-func (stats *UnitStats) removeUnit(index int64, recycle int64) error {
-	tag := unitTag(index, recycle)
-
-	if _, ok := stats.Units[tag]; !ok {
-		// Trying to remove a nonexistant unit
-		return fmt.Errorf("Tried to remove unit tag %d but does not exist", tag)
-	}
-	delete(stats.Units, tag)
-
-	return nil
-}
-
-// Remove all units owned (in terms of supply) other than stats.PlayerID
-func (stats *UnitStats) prune() {
-	for tag, unit := range stats.Units {
-		if unit.OwnerID != stats.PlayerID {
-			delete(stats.Units, tag)
-		}
-	}
-}
-
-func (stats *UnitStats) summarize() map[string]int {
-	out := make(map[string]int)
-
-	for _, unit := range stats.Units {
-		out[unit.Name] += 1
-	}
-
-	return out
-}
-
-func unitTag(unitTagIndex int64, unitTagRecycle int64) int64 {
-	// Ripped from https://github.com/Blizzard/s2protocol, search `func
-	// unit_tag`. Whoever thought of this system must've been drunk.
-	return (unitTagIndex << 18) + unitTagRecycle
 }

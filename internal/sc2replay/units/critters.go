@@ -5,6 +5,8 @@ type Critter struct {
 }
 
 var Critters = map[string]Critter{
-	"KarakMale":   Critter{"Karak"},
-	"KarakFemale": Critter{"Karak"},
+	"KarakMale":   Critter{"Male Karak"},
+	"KarakFemale": Critter{"Female Karak"},
+	"CarrionBird": Critter{"Urubu"},
+	"Ursadon":     Critter{"Ursadon"},
 }

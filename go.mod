@@ -7,6 +7,8 @@ require (
 	github.com/gocraft/work v0.5.1
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/icza/mpq v0.0.0-20200521101201-ff3251015c87 // indirect
+	github.com/icza/s2prot v1.4.1-0.20200825134123-6a8d8a95ef42
 	github.com/jackc/pgproto3/v2 v2.0.4 // indirect
 	github.com/joho/godotenv v1.3.0
 	github.com/robfig/cron v1.2.0 // indirect

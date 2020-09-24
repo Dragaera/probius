@@ -186,6 +186,14 @@ func (bot *Bot) registerCommands() error {
 			Middleware:  []Middleware{bot.enrichSC2ReplayStatsUser},
 			F:           bot.cmdSubscriptions,
 		},
+		Command{
+			Command:     "supply",
+			Description: "Parse replay, showing supply details at given timestamp",
+			Usage:       "supply <timestamp>",
+			MinArgs:     1,
+			MaxArgs:     1,
+			F:           bot.cmdSupply,
+		},
 	}
 
 	for _, cmd := range commands {

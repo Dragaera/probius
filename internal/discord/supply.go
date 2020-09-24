@@ -139,6 +139,12 @@ func generateReport(file string, duration int) (sc2replay.Report, error) {
 }
 
 func buildSupplyEmbed(report *sc2replay.Report, timestamp string) discordgo.MessageEmbed {
+	ownerField := discordgo.MessageEmbedField{
+		Name:   "Replay owner",
+		Value:  report.PlayerName,
+		Inline: true,
+	}
+
 	timestampField := discordgo.MessageEmbedField{
 		Name:   "Timestamp",
 		Value:  timestamp,
@@ -176,6 +182,7 @@ func buildSupplyEmbed(report *sc2replay.Report, timestamp string) discordgo.Mess
 	}
 
 	fields := []*discordgo.MessageEmbedField{
+		&ownerField,
 		&timestampField,
 		&supplyField,
 		&critterField,
@@ -202,6 +209,13 @@ func buildCritterList(report *sc2replay.Report) string {
 			critter.Name,
 			stats.Alive,
 			stats.Total,
+		)
+	}
+
+	if out.Len() == 0 {
+		fmt.Fprint(
+			&out,
+			"No critters on this map :(",
 		)
 	}
 

@@ -26,8 +26,10 @@ type IngameUpgrade struct {
 }
 
 type Report struct {
-	PlayerID int64
-	Replay   *Replay
+	PlayerID   int64
+	PlayerName string
+	Replay     *Replay
+
 	// Map containing everything the game considers a unit. This also
 	// includes buildings, mineral patches etc. This also contains units
 	// owned by other players.
@@ -68,6 +70,8 @@ func (rep *Report) At(ticks int64) {
 	rep.IngameUnits = make(map[int64]IngameUnit)
 	rep.IngameUpgrades = make([]IngameUpgrade, 0)
 	rep.CritterStats = make(map[units.Critter]CritterStat)
+
+	rep.calculateMetaInformation()
 
 	for _, evt := range rep.Replay.Rep.TrackerEvts.Evts {
 		// We handle this here to allow an early exit
@@ -300,6 +304,23 @@ func (rep *Report) enrich() {
 		}
 		// fmt.Printf("Unknown upgrade: %v\n", upgrade.Name)
 	}
+}
+
+func (rep *Report) calculateMetaInformation() error {
+	rep.PlayerName = ""
+
+	player, ok := rep.Replay.Rep.TrackerEvts.PIDPlayerDescMap[rep.PlayerID]
+	if !ok {
+		return fmt.Errorf("Unable to find player with ID %d", rep.PlayerID)
+	}
+
+	user := rep.Replay.Rep.InitData.UserInitDatas[player.UserID]
+	if len(user.ClanTag()) > 0 {
+		rep.PlayerName += fmt.Sprintf("<%s> ", user.ClanTag())
+	}
+	rep.PlayerName += user.Name()
+
+	return nil
 }
 
 func (rep *Report) calculateUnitCount() {

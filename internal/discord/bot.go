@@ -13,7 +13,7 @@ import (
 	"syscall"
 )
 
-const version string = "0.1.0"
+const version string = "0.2.0"
 const githubURL string = "https://github.com/dragaera/probius"
 
 type Bot struct {
